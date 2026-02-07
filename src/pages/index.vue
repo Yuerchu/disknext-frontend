@@ -299,8 +299,8 @@ function onRowContextMenu(_e: Event, row: TableRow<FileObject>) {
 
 // Error toast
 function showApiError(e: AxiosError<ApiErrorResponse>, fallback: string) {
-  const status = e?.response?.status
-  const detail = e?.response?.data?.detail
+  const status = e.response!.status
+  const detail = e.response!.data!.detail
   const errorMessages: Record<number, string> = {
     400: t('errors.invalidParams'),
     404: t('errors.notFound'),
