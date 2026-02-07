@@ -47,13 +47,24 @@ function formatBytes(bytes: number): string {
 
 <template>
   <div class="p-6 space-y-6">
-    <h1 class="text-2xl font-semibold">{{ t('admin.siteSummary') }}</h1>
+    <h1 class="text-2xl font-semibold">
+      {{ t('admin.siteSummary') }}
+    </h1>
 
-    <div v-if="loading" class="flex items-center justify-center py-12">
-      <UIcon name="i-lucide-loader-2" class="size-8 animate-spin text-muted" />
+    <div
+      v-if="loading"
+      class="flex items-center justify-center py-12"
+    >
+      <UIcon
+        name="i-lucide-loader-2"
+        class="size-8 animate-spin text-muted"
+      />
     </div>
 
-    <div v-else-if="error" class="text-center py-12 text-red-500">
+    <div
+      v-else-if="error"
+      class="text-center py-12 text-red-500"
+    >
       {{ error }}
     </div>
 
@@ -61,75 +72,133 @@ function formatBytes(bytes: number): string {
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <UCard>
           <div class="space-y-1">
-            <p class="text-sm text-muted">{{ t('admin.instanceId') }}</p>
-            <p class="font-mono text-sm">{{ summary.instance_id }}</p>
+            <p class="text-sm text-muted">
+              {{ t('admin.instanceId') }}
+            </p>
+            <p class="font-mono text-sm">
+              {{ summary.instance_id }}
+            </p>
           </div>
         </UCard>
 
         <UCard>
           <div class="space-y-1">
-            <p class="text-sm text-muted">{{ t('admin.version') }}</p>
-            <p class="font-medium">{{ summary.version }}</p>
+            <p class="text-sm text-muted">
+              {{ t('admin.version') }}
+            </p>
+            <p class="font-medium">
+              {{ summary.version }}
+            </p>
           </div>
         </UCard>
 
         <UCard>
           <div class="space-y-1">
-            <p class="text-sm text-muted">{{ t('admin.license') }}</p>
-            <p class="font-medium">{{ summary.license.type }}</p>
-            <p class="text-xs text-muted">{{ t('admin.expiresAt', { date: summary.license.expires }) }}</p>
+            <p class="text-sm text-muted">
+              {{ t('admin.license') }}
+            </p>
+            <p class="font-medium">
+              {{ summary.license.type }}
+            </p>
+            <p class="text-xs text-muted">
+              {{ t('admin.expiresAt', { date: summary.license.expires }) }}
+            </p>
           </div>
         </UCard>
       </div>
 
-      <h2 class="text-lg font-semibold">{{ t('admin.metricsSummary') }}</h2>
+      <h2 class="text-lg font-semibold">
+        {{ t('admin.metricsSummary') }}
+      </h2>
 
       <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <UCard>
           <div class="text-center space-y-1">
-            <UIcon name="i-lucide-users" class="size-6 text-primary mx-auto" />
-            <p class="text-2xl font-bold">{{ summary.metrics.users }}</p>
-            <p class="text-sm text-muted">{{ t('admin.users') }}</p>
+            <UIcon
+              name="i-lucide-users"
+              class="size-6 text-primary mx-auto"
+            />
+            <p class="text-2xl font-bold">
+              {{ summary.metrics.users }}
+            </p>
+            <p class="text-sm text-muted">
+              {{ t('admin.users') }}
+            </p>
           </div>
         </UCard>
 
         <UCard>
           <div class="text-center space-y-1">
-            <UIcon name="i-lucide-file" class="size-6 text-primary mx-auto" />
-            <p class="text-2xl font-bold">{{ summary.metrics.files }}</p>
-            <p class="text-sm text-muted">{{ t('admin.files') }}</p>
+            <UIcon
+              name="i-lucide-file"
+              class="size-6 text-primary mx-auto"
+            />
+            <p class="text-2xl font-bold">
+              {{ summary.metrics.files }}
+            </p>
+            <p class="text-sm text-muted">
+              {{ t('admin.files') }}
+            </p>
           </div>
         </UCard>
 
         <UCard>
           <div class="text-center space-y-1">
-            <UIcon name="i-lucide-share-2" class="size-6 text-primary mx-auto" />
-            <p class="text-2xl font-bold">{{ summary.metrics.shares }}</p>
-            <p class="text-sm text-muted">{{ t('admin.shares') }}</p>
+            <UIcon
+              name="i-lucide-share-2"
+              class="size-6 text-primary mx-auto"
+            />
+            <p class="text-2xl font-bold">
+              {{ summary.metrics.shares }}
+            </p>
+            <p class="text-sm text-muted">
+              {{ t('admin.shares') }}
+            </p>
           </div>
         </UCard>
 
         <UCard>
           <div class="text-center space-y-1">
-            <UIcon name="i-lucide-hard-drive" class="size-6 text-primary mx-auto" />
-            <p class="text-2xl font-bold">{{ formatBytes(summary.metrics.storage_used) }}</p>
-            <p class="text-sm text-muted">{{ t('admin.storageUsed') }}</p>
+            <UIcon
+              name="i-lucide-hard-drive"
+              class="size-6 text-primary mx-auto"
+            />
+            <p class="text-2xl font-bold">
+              {{ formatBytes(summary.metrics.storage_used) }}
+            </p>
+            <p class="text-sm text-muted">
+              {{ t('admin.storageUsed') }}
+            </p>
           </div>
         </UCard>
 
         <UCard>
           <div class="text-center space-y-1">
-            <UIcon name="i-lucide-users" class="size-6 text-primary mx-auto" />
-            <p class="text-2xl font-bold">{{ summary.metrics.groups }}</p>
-            <p class="text-sm text-muted">{{ t('admin.groups') }}</p>
+            <UIcon
+              name="i-lucide-users"
+              class="size-6 text-primary mx-auto"
+            />
+            <p class="text-2xl font-bold">
+              {{ summary.metrics.groups }}
+            </p>
+            <p class="text-sm text-muted">
+              {{ t('admin.groups') }}
+            </p>
           </div>
         </UCard>
 
         <UCard>
           <div class="text-center space-y-1">
-            <UIcon name="i-lucide-server" class="size-6 text-primary mx-auto" />
-            <p class="text-2xl font-bold">{{ summary.metrics.nodes }}</p>
-            <p class="text-sm text-muted">{{ t('admin.nodes') }}</p>
+            <UIcon
+              name="i-lucide-server"
+              class="size-6 text-primary mx-auto"
+            />
+            <p class="text-2xl font-bold">
+              {{ summary.metrics.nodes }}
+            </p>
+            <p class="text-sm text-muted">
+              {{ t('admin.nodes') }}
+            </p>
           </div>
         </UCard>
       </div>

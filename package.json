@@ -7,7 +7,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint --ext .js,.vue src",
-    "typecheck": "vue-tsc -p ./tsconfig.app.json"
+    "typecheck": "vue-tsc -p ./tsconfig.app.json",
+    "prepare": "husky"
   },
   "dependencies": {
     "@nuxt/ui": "^4.4.0",
@@ -23,10 +24,15 @@
     "@vitejs/plugin-vue": "^6.0.3",
     "eslint": "^9.39.2",
     "eslint-plugin-vue": "^10.7.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.54.0",
     "vite": "^7.3.1",
     "vue-tsc": "^3.2.4"
+  },
+  "lint-staged": {
+    "*.{vue,ts,js}": "eslint --fix"
   },
   "packageManager": "pnpm@10.28.2"
 }

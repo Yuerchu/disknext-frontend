@@ -1,3 +1,4 @@
+import type { AxiosError } from 'axios'
 import { defineStore } from 'pinia'
 import i18n from '../i18n'
 import api from '../utils/api'
@@ -112,10 +113,11 @@ export const useUploadStore = defineStore('upload', {
         }
 
         task.status = 'completed'
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (task.status !== 'cancelled') {
           task.status = 'failed'
-          task.error = e?.response?.data?.detail || i18n.global.t('upload.failed')
+          const err = e as AxiosError<{ detail?: string }>
+          task.error = err?.response?.data?.detail || i18n.global.t('upload.failed')
         }
       }
     },

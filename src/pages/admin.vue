@@ -163,11 +163,21 @@ const items = computed<NavigationMenuItem[][]>(() => [
 
 <template>
   <UDashboardGroup>
-    <UDashboardSidebar collapsible resizable>
+    <UDashboardSidebar
+      collapsible
+      resizable
+    >
       <template #header="{ collapsed }">
         <RouterLink to="/admin">
-          <AppLogo v-if="!collapsed" class="h-5 w-auto shrink-0" />
-          <UIcon v-else name="i-lucide-shield" class="size-5 text-primary mx-auto" />
+          <AppLogo
+            v-if="!collapsed"
+            class="h-5 w-auto shrink-0"
+          />
+          <UIcon
+            v-else
+            name="i-lucide-shield"
+            class="size-5 text-primary mx-auto"
+          />
         </RouterLink>
       </template>
 
@@ -194,15 +204,24 @@ const items = computed<NavigationMenuItem[][]>(() => [
 
     <UDashboardPanel>
       <template #header>
-        <UDashboardNavbar :title="t('admin.panel')" icon="i-lucide-shield">
+        <UDashboardNavbar
+          :title="t('admin.panel')"
+          icon="i-lucide-shield"
+        >
           <template #leading>
             <UDashboardSidebarCollapse />
           </template>
 
           <template #right>
             <UColorModeButton />
-            <UDropdownMenu :items="userMenuItems" :content="{ align: 'end' }">
-              <UAvatar :alt="user.nickname" size="sm" />
+            <UDropdownMenu
+              :items="userMenuItems"
+              :content="{ align: 'end' }"
+            >
+              <UAvatar
+                :alt="user.nickname"
+                size="sm"
+              />
             </UDropdownMenu>
           </template>
         </UDashboardNavbar>

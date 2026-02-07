@@ -3,6 +3,7 @@ import { h, computed, ref, watch, onMounted, resolveComponent } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { setLocale } from '../i18n'
+import { useToast } from '@nuxt/ui'
 import type { BreadcrumbItem, NavigationMenuItem, DropdownMenuItem, TableColumn, ContextMenuItem, TableRow } from '@nuxt/ui'
 import { useAdminStore } from '../stores/admin'
 import { useUserStore } from '../stores/user'
@@ -20,6 +21,10 @@ const user = useUserStore()
 const auth = useAuthStore()
 const upload = useUploadStore()
 const { t, locale } = useI18n()
+
+import type { AxiosError } from 'axios'
+
+type ApiErrorResponse = { detail?: string }
 
 interface FileObject {
   id: string
@@ -294,7 +299,7 @@ function onRowContextMenu(_e: Event, row: TableRow<FileObject>) {
 }
 
 // Error toast
-function showApiError(e: any, fallback: string) {
+function showApiError(e: AxiosError<ApiErrorResponse>, fallback: string) {
   const status = e?.response?.status
   const detail = e?.response?.data?.detail
   const errorMessages: Record<number, string> = {
@@ -333,8 +338,8 @@ async function confirmDelete() {
     })
     deleteModalOpen.value = false
     fetchDirectory(currentPath.value)
-  } catch (e: any) {
-    showApiError(e, t('errors.deleteFailed'))
+  } catch (e: unknown) {
+    showApiError(e as AxiosError<ApiErrorResponse>, t('errors.deleteFailed'))
   }
 }
 
@@ -356,8 +361,8 @@ async function confirmRename() {
     await api.post('/api/v1/object/rename', { id: renameTargetId.value, new_name: name })
     renameModalOpen.value = false
     fetchDirectory(currentPath.value)
-  } catch (e: any) {
-    showApiError(e, t('errors.renameFailed'))
+  } catch (e: unknown) {
+    showApiError(e as AxiosError<ApiErrorResponse>, t('errors.renameFailed'))
   }
 }
 
@@ -389,8 +394,8 @@ async function confirmCreate() {
     }
     createModalOpen.value = false
     fetchDirectory(currentPath.value)
-  } catch (e: any) {
-    showApiError(e, t('errors.createFailed'))
+  } catch (e: unknown) {
+    showApiError(e as AxiosError<ApiErrorResponse>, t('errors.createFailed'))
   }
 }
 
@@ -422,9 +427,10 @@ async function createUploadSession(file: File): Promise<UploadSession | null> {
       policy_id: directory.value.policy.id
     })
     return data
-  } catch (e: any) {
-    const status = e?.response?.status
-    const detail = e?.response?.data?.detail
+  } catch (e: unknown) {
+    const err = e as AxiosError<ApiErrorResponse>
+    const status = err?.response?.status
+    const detail = err?.response?.data?.detail
     const uploadErrorMessages: Record<number, string> = {
       400: t('upload.invalidFileName'),
       402: t('upload.insufficientSpace'),
@@ -434,7 +440,7 @@ async function createUploadSession(file: File): Promise<UploadSession | null> {
     }
     const message = typeof detail === 'string'
       ? detail
-      : uploadErrorMessages[status] || (status >= 500 ? t('upload.serverError') : t('upload.failed'))
+      : uploadErrorMessages[status ?? 0] || (status && status >= 500 ? t('upload.serverError') : t('upload.failed'))
     toast.add({
       title: t('upload.uploadFailedFor', { name: file.name }),
       description: message,
@@ -651,11 +657,21 @@ const storagePercent = Math.round((storageUsed / storageTotal) * 100)
 
 <template>
   <UDashboardGroup>
-    <UDashboardSidebar collapsible resizable>
+    <UDashboardSidebar
+      collapsible
+      resizable
+    >
       <template #header="{ collapsed }">
         <RouterLink to="/">
-          <AppLogo v-if="!collapsed" class="h-5 w-auto shrink-0" />
-          <UIcon v-else name="i-lucide-hard-drive" class="size-5 text-primary mx-auto" />
+          <AppLogo
+            v-if="!collapsed"
+            class="h-5 w-auto shrink-0"
+          />
+          <UIcon
+            v-else
+            name="i-lucide-hard-drive"
+            class="size-5 text-primary mx-auto"
+          />
         </RouterLink>
       </template>
 
@@ -681,15 +697,32 @@ const storagePercent = Math.round((storageUsed / storageTotal) * 100)
       </template>
 
       <template #footer="{ collapsed }">
-        <div v-if="!collapsed" class="w-full px-1 py-1 space-y-1.5">
+        <div
+          v-if="!collapsed"
+          class="w-full px-1 py-1 space-y-1.5"
+        >
           <div class="flex items-center justify-between text-xs text-muted">
             <span>{{ t('nav.storage') }}</span>
-            <ULink to="#" class="text-primary font-medium">{{ t('nav.storageDetails') }}</ULink>
+            <ULink
+              to="#"
+              class="text-primary font-medium"
+            >
+              {{ t('nav.storageDetails') }}
+            </ULink>
           </div>
-          <UProgress :value="storagePercent" size="xs" />
-          <p class="text-xs text-muted">{{ storageUsed }} GB / {{ storageTotal }} GB</p>
+          <UProgress
+            :value="storagePercent"
+            size="xs"
+          />
+          <p class="text-xs text-muted">
+            {{ storageUsed }} GB / {{ storageTotal }} GB
+          </p>
         </div>
-        <UIcon v-else name="i-lucide-database" class="size-5 text-muted mx-auto" />
+        <UIcon
+          v-else
+          name="i-lucide-database"
+          class="size-5 text-muted mx-auto"
+        />
       </template>
     </UDashboardSidebar>
 
@@ -702,20 +735,36 @@ const storagePercent = Math.round((storageUsed / storageTotal) * 100)
               <template #item="{ item, index }">
                 <button
                   v-if="index < breadcrumbItems.length - 1"
-                  @click="navigateToBreadcrumb(index)"
                   class="group relative flex items-center gap-1.5 text-sm text-muted font-medium hover:text-default transition-colors cursor-pointer"
+                  @click="navigateToBreadcrumb(index)"
                 >
-                  <UIcon v-if="item.icon" :name="item.icon" class="shrink-0 size-5" />
+                  <UIcon
+                    v-if="item.icon"
+                    :name="item.icon"
+                    class="shrink-0 size-5"
+                  />
                   <span class="truncate">{{ item.label }}</span>
                 </button>
-                <span v-else class="flex items-center gap-1.5 text-sm text-primary font-semibold">
-                  <UIcon v-if="item.icon" :name="item.icon" class="shrink-0 size-5" />
+                <span
+                  v-else
+                  class="flex items-center gap-1.5 text-sm text-primary font-semibold"
+                >
+                  <UIcon
+                    v-if="item.icon"
+                    :name="item.icon"
+                    class="shrink-0 size-5"
+                  />
                   <span class="truncate">{{ item.label }}</span>
                 </span>
               </template>
               <template #collapsed="{ item }: { item: BreadcrumbItem }">
                 <UDropdownMenu :items="item.children">
-                  <UButton :icon="item.icon" color="neutral" variant="link" class="p-0.5" />
+                  <UButton
+                    :icon="item.icon"
+                    color="neutral"
+                    variant="link"
+                    class="p-0.5"
+                  />
                 </UDropdownMenu>
               </template>
             </UBreadcrumb>
@@ -723,8 +772,14 @@ const storagePercent = Math.round((storageUsed / storageTotal) * 100)
 
           <template #right>
             <UColorModeButton />
-            <UDropdownMenu :items="userMenuItems" :content="{ align: 'end' }">
-              <UAvatar :alt="user.nickname" size="sm" />
+            <UDropdownMenu
+              :items="userMenuItems"
+              :content="{ align: 'end' }"
+            >
+              <UAvatar
+                :alt="user.nickname"
+                size="sm"
+              />
             </UDropdownMenu>
           </template>
         </UDashboardNavbar>
@@ -733,23 +788,41 @@ const storagePercent = Math.round((storageUsed / storageTotal) * 100)
       <template #body>
         <UContextMenu :items="contextItems">
           <div
+            class="flex flex-col h-full relative"
             @contextmenu.capture="resetContextMenu"
             @dragenter.prevent="onDragEnter"
             @dragover.prevent
             @dragleave="onDragLeave"
             @drop.prevent="onDrop"
-            class="flex flex-col h-full relative"
           >
-            <div v-if="dragging" class="absolute inset-0 z-10 bg-primary/5 border-2 border-dashed border-primary rounded-lg flex items-center justify-center pointer-events-none">
+            <div
+              v-if="dragging"
+              class="absolute inset-0 z-10 bg-primary/5 border-2 border-dashed border-primary rounded-lg flex items-center justify-center pointer-events-none"
+            >
               <div class="text-center">
-                <UIcon name="i-lucide-upload" class="size-12 text-primary mx-auto" />
-                <p class="text-primary font-medium mt-2">{{ t('file.releaseToUpload') }}</p>
+                <UIcon
+                  name="i-lucide-upload"
+                  class="size-12 text-primary mx-auto"
+                />
+                <p class="text-primary font-medium mt-2">
+                  {{ t('file.releaseToUpload') }}
+                </p>
               </div>
             </div>
-            <div v-if="loading" class="flex-1">
-              <div v-for="i in 8" :key="i" class="flex items-center gap-3 px-4 py-3 border-b border-accented">
+            <div
+              v-if="loading"
+              class="flex-1"
+            >
+              <div
+                v-for="i in 8"
+                :key="i"
+                class="flex items-center gap-3 px-4 py-3 border-b border-accented"
+              >
                 <USkeleton class="size-5 rounded" />
-                <USkeleton class="h-4 flex-1" :style="{ maxWidth: `${200 + (i % 3) * 80}px` }" />
+                <USkeleton
+                  class="h-4 flex-1"
+                  :style="{ maxWidth: `${200 + (i % 3) * 80}px` }"
+                />
                 <USkeleton class="h-4 w-16 ml-auto" />
                 <USkeleton class="h-4 w-28" />
               </div>
@@ -759,7 +832,7 @@ const storagePercent = Math.round((storageUsed / storageTotal) * 100)
               :data="sortedObjects"
               :columns="columns"
               class="flex-1"
-              @select="(_e: Event, row: any) => {
+              @select="(_e: Event, row: TableRow<FileObject>) => {
                 if (row.original.type === 'folder') {
                   navigateToFolder(row.original.name)
                 }
@@ -769,9 +842,16 @@ const storagePercent = Math.round((storageUsed / storageTotal) * 100)
               <template #empty>
                 <div class="flex items-center justify-center py-12 text-muted">
                   <div class="text-center space-y-2">
-                    <UIcon name="i-lucide-folder-open" class="size-16 mx-auto" />
-                    <p class="text-lg">{{ t('file.emptyFolder') }}</p>
-                    <p class="text-sm">{{ t('file.dropToUpload') }}</p>
+                    <UIcon
+                      name="i-lucide-folder-open"
+                      class="size-16 mx-auto"
+                    />
+                    <p class="text-lg">
+                      {{ t('file.emptyFolder') }}
+                    </p>
+                    <p class="text-sm">
+                      {{ t('file.dropToUpload') }}
+                    </p>
                   </div>
                 </div>
               </template>
@@ -782,13 +862,19 @@ const storagePercent = Math.round((storageUsed / storageTotal) * 100)
     </UDashboardPanel>
   </UDashboardGroup>
 
-  <UModal v-model:open="deleteModalOpen" :title="t('deleteModal.title')" :ui="{ footer: 'justify-end' }">
+  <UModal
+    v-model:open="deleteModalOpen"
+    :title="t('deleteModal.title')"
+    :ui="{ footer: 'justify-end' }"
+  >
     <template #body>
       <div class="space-y-4">
         <p class="text-sm">
           {{ t('deleteModal.message', { name: deleteTargetName }) }}
         </p>
-        <p class="text-sm text-muted">{{ t('deleteModal.hint') }}</p>
+        <p class="text-sm text-muted">
+          {{ t('deleteModal.hint') }}
+        </p>
         <UCheckbox
           v-model="deletePermanent"
           color="error"
@@ -799,7 +885,12 @@ const storagePercent = Math.round((storageUsed / storageTotal) * 100)
     </template>
 
     <template #footer>
-      <UButton :label="t('common.cancel')" color="neutral" variant="outline" @click="deleteModalOpen = false" />
+      <UButton
+        :label="t('common.cancel')"
+        color="neutral"
+        variant="outline"
+        @click="deleteModalOpen = false"
+      />
       <UButton
         :label="deletePermanent ? t('deleteModal.permanentDelete') : t('deleteModal.moveToTrash')"
         :color="deletePermanent ? 'error' : 'primary'"
@@ -824,12 +915,25 @@ const storagePercent = Math.round((storageUsed / storageTotal) * 100)
     </template>
 
     <template #footer>
-      <UButton :label="t('common.cancel')" color="neutral" variant="outline" @click="createModalOpen = false" />
-      <UButton :label="t('common.create')" :disabled="!createName.trim()" @click="confirmCreate" />
+      <UButton
+        :label="t('common.cancel')"
+        color="neutral"
+        variant="outline"
+        @click="createModalOpen = false"
+      />
+      <UButton
+        :label="t('common.create')"
+        :disabled="!createName.trim()"
+        @click="confirmCreate"
+      />
     </template>
   </UModal>
 
-  <UModal v-model:open="renameModalOpen" :title="t('renameModal.title')" :ui="{ footer: 'justify-end' }">
+  <UModal
+    v-model:open="renameModalOpen"
+    :title="t('renameModal.title')"
+    :ui="{ footer: 'justify-end' }"
+  >
     <template #body>
       <UInput
         v-model="renameNewName"
@@ -841,12 +945,27 @@ const storagePercent = Math.round((storageUsed / storageTotal) * 100)
     </template>
 
     <template #footer>
-      <UButton :label="t('common.cancel')" color="neutral" variant="outline" @click="renameModalOpen = false" />
-      <UButton :label="t('common.confirm')" :disabled="!renameNewName.trim()" @click="confirmRename" />
+      <UButton
+        :label="t('common.cancel')"
+        color="neutral"
+        variant="outline"
+        @click="renameModalOpen = false"
+      />
+      <UButton
+        :label="t('common.confirm')"
+        :disabled="!renameNewName.trim()"
+        @click="confirmRename"
+      />
     </template>
   </UModal>
 
-  <input ref="fileInputRef" type="file" multiple class="hidden" @change="onFilesSelected" />
+  <input
+    ref="fileInputRef"
+    type="file"
+    multiple
+    class="hidden"
+    @change="onFilesSelected"
+  >
 
   <UDrawer
     v-model:open="upload.drawerOpen"
@@ -860,14 +979,28 @@ const storagePercent = Math.round((storageUsed / storageTotal) * 100)
     <template #header>
       <div class="flex items-center justify-between w-full">
         <span class="font-semibold text-sm">{{ t('upload.tasks') }}</span>
-        <UButton icon="i-lucide-x" color="neutral" variant="ghost" size="xs" @click="upload.drawerOpen = false" />
+        <UButton
+          icon="i-lucide-x"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          @click="upload.drawerOpen = false"
+        />
       </div>
     </template>
     <template #body>
       <div class="space-y-3 max-h-64 overflow-y-auto">
-        <div v-for="task in upload.tasks" :key="task.id" class="space-y-1">
+        <div
+          v-for="task in upload.tasks"
+          :key="task.id"
+          class="space-y-1"
+        >
           <div class="flex items-center gap-2">
-            <UIcon :name="taskIcon(task)" :class="taskIconColor(task)" class="size-4 shrink-0" />
+            <UIcon
+              :name="taskIcon(task)"
+              :class="taskIconColor(task)"
+              class="size-4 shrink-0"
+            />
             <span class="text-sm truncate flex-1">{{ task.fileName }}</span>
             <UButton
               v-if="task.status === 'uploading'"
@@ -888,13 +1021,22 @@ const storagePercent = Math.round((storageUsed / storageTotal) * 100)
               <span>{{ taskPercent(task) }}% · {{ formatSpeed(task.speed) }}</span>
             </div>
           </template>
-          <div v-else-if="task.status === 'completed'" class="text-xs text-success">
+          <div
+            v-else-if="task.status === 'completed'"
+            class="text-xs text-success"
+          >
             {{ t('upload.completed') }} · {{ formatSize(task.fileSize) }}
           </div>
-          <div v-else-if="task.status === 'failed'" class="text-xs text-error">
+          <div
+            v-else-if="task.status === 'failed'"
+            class="text-xs text-error"
+          >
             {{ task.error }}
           </div>
-          <div v-else-if="task.status === 'cancelled'" class="text-xs text-muted">
+          <div
+            v-else-if="task.status === 'cancelled'"
+            class="text-xs text-muted"
+          >
             {{ t('upload.cancelled') }}
           </div>
         </div>

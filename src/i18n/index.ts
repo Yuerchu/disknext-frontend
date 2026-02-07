@@ -1,3 +1,4 @@
+import type { Ref } from 'vue'
 import { createI18n } from 'vue-i18n'
 import zhCN from './zh-CN'
 import en from './en'
@@ -24,6 +25,6 @@ const i18n = createI18n({
 export default i18n
 
 export function setLocale(locale: string) {
-  ;(i18n.global.locale as any).value = locale
+  ;(i18n.global.locale as unknown as Ref<string>).value = locale
   localStorage.setItem('locale', locale)
 }

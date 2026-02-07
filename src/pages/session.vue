@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import * as z from 'zod'
 import type { FormSubmitEvent, AuthFormField } from '@nuxt/ui'
 import { useI18n } from 'vue-i18n'
@@ -63,14 +65,15 @@ async function onSubmit(payload: FormSubmitEvent<Schema>) {
 
     auth.setSession(data)
     router.push('/')
-  } catch (e: any) {
-    const detail = e.response?.data?.detail
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { detail?: unknown } }; message?: string }
+    const detail = err.response?.data?.detail
     if (Array.isArray(detail)) {
       error.value = detail[0]?.msg || t('errors.loginFailed')
     } else if (typeof detail === 'string') {
       error.value = detail
     } else {
-      error.value = e.message || t('errors.loginFailedCheck')
+      error.value = err.message || t('errors.loginFailedCheck')
     }
   } finally {
     loading.value = false
@@ -91,14 +94,24 @@ async function onSubmit(payload: FormSubmitEvent<Schema>) {
         :submit="{ label: t('session.submit'), block: true }"
         @submit="onSubmit"
       >
-        <template v-if="error" #validation>
-          <UAlert color="error" icon="i-lucide-circle-x" :title="error" />
+        <template
+          v-if="error"
+          #validation
+        >
+          <UAlert
+            color="error"
+            icon="i-lucide-circle-x"
+            :title="error"
+          />
         </template>
       </UAuthForm>
 
       <div class="flex justify-center mt-4">
         <div class="flex items-center gap-1">
-          <UIcon name="i-lucide-languages" class="size-4 text-muted" />
+          <UIcon
+            name="i-lucide-languages"
+            class="size-4 text-muted"
+          />
           <UDropdownMenu
             :items="[[
               ...supportedLocales.map(l => ({
