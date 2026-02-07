@@ -2,6 +2,7 @@ import js from '@eslint/js'
 import eslintPluginVue from 'eslint-plugin-vue'
 import ts from 'typescript-eslint'
 import globals from 'globals'
+import autoImportGlobals from './.eslintrc-auto-import.json' with { type: 'json' }
 
 export default ts.config(
   js.configs.recommended,
@@ -10,7 +11,8 @@ export default ts.config(
   {
     languageOptions: {
       globals: {
-        ...globals.browser
+        ...globals.browser,
+        ...autoImportGlobals.globals
       }
     }
   },
