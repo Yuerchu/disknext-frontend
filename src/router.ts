@@ -3,6 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 const router = createRouter({
   routes: [
     { path: '/', component: () => import('./pages/index.vue') },
+    { path: '/settings', component: () => import('./pages/settings.vue') },
     { path: '/session', component: () => import('./pages/session.vue'), meta: { guest: true } },
     {
       path: '/admin',
@@ -10,7 +11,20 @@ const router = createRouter({
       meta: { admin: true },
       redirect: '/admin/home',
       children: [
-        { path: 'home', component: () => import('./pages/admin/home.vue') }
+        { path: 'home', component: () => import('./pages/admin/home.vue') },
+        { path: 'settings/:section', component: () => import('./pages/admin/placeholder.vue') },
+        { path: 'fs/:section', component: () => import('./pages/admin/placeholder.vue') },
+        { path: 'policies', component: () => import('./pages/admin/placeholder.vue') },
+        { path: 'nodes', component: () => import('./pages/admin/placeholder.vue') },
+        { path: 'groups', component: () => import('./pages/admin/placeholder.vue') },
+        { path: 'users', component: () => import('./pages/admin/placeholder.vue') },
+        { path: 'files', component: () => import('./pages/admin/placeholder.vue') },
+        { path: 'blobs', component: () => import('./pages/admin/placeholder.vue') },
+        { path: 'shares', component: () => import('./pages/admin/placeholder.vue') },
+        { path: 'orders', component: () => import('./pages/admin/placeholder.vue') },
+        { path: 'events', component: () => import('./pages/admin/placeholder.vue') },
+        { path: 'reports', component: () => import('./pages/admin/placeholder.vue') },
+        { path: 'oauth', component: () => import('./pages/admin/placeholder.vue') }
       ]
     }
   ],

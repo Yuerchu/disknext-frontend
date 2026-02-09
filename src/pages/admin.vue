@@ -30,7 +30,10 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => [
     },
     {
       label: t('user.settingsAndAbout'),
-      icon: 'i-lucide-settings'
+      icon: 'i-lucide-settings',
+      onSelect() {
+        router.push('/settings')
+      }
     },
     {
       label: t('user.language'),

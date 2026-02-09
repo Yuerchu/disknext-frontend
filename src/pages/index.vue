@@ -3,7 +3,7 @@ import { h, computed, ref, watch, onMounted, resolveComponent } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { setLocale } from '../i18n'
-import type { BreadcrumbItem, NavigationMenuItem, DropdownMenuItem, TableColumn, ContextMenuItem, TableRow } from '@nuxt/ui'
+import type { BreadcrumbItem, DropdownMenuItem, TableColumn, ContextMenuItem, TableRow } from '@nuxt/ui'
 import { useAdminStore } from '../stores/admin'
 import { useUserStore } from '../stores/user'
 import { useAuthStore } from '../stores/auth'
@@ -529,77 +529,6 @@ onMounted(() => {
   contextItems.value = getEmptyAreaItems()
 })
 
-const items = computed<NavigationMenuItem[][]>(() => [
-  [
-    {
-      label: t('nav.myFiles'),
-      icon: 'i-lucide-folder',
-      defaultOpen: true,
-      active: true,
-      children: [
-        { label: '文件夹1' },
-        { label: '文件夹2' }
-      ]
-    },
-    {
-      label: t('nav.images'),
-      icon: 'i-lucide-image'
-    },
-    {
-      label: t('nav.videos'),
-      icon: 'i-lucide-video'
-    },
-    {
-      label: t('nav.music'),
-      icon: 'i-lucide-music'
-    },
-    {
-      label: t('nav.documents'),
-      icon: 'i-lucide-file-text'
-    },
-    {
-      label: t('nav.sharedWithMe'),
-      icon: 'i-lucide-share-2',
-      defaultOpen: true,
-      children: [
-        { label: '分享1' },
-        { label: '分享2' }
-      ]
-    },
-    {
-      label: t('nav.trash'),
-      icon: 'i-lucide-trash-2'
-    }
-  ],
-  [
-    {
-      label: t('nav.myShares'),
-      icon: 'i-lucide-send'
-    },
-    {
-      label: t('nav.mountAndClient'),
-      icon: 'i-lucide-hard-drive'
-    },
-    {
-      label: t('nav.tasksAndDownloads'),
-      icon: 'i-lucide-download'
-    },
-    {
-      label: t('nav.shop'),
-      icon: 'i-lucide-shopping-bag'
-    }
-  ]
-])
-
-const adminItems = computed<NavigationMenuItem[]>(() => [
-  {
-    label: t('user.adminPanel'),
-    icon: 'i-lucide-shield',
-    badge: t('user.admin'),
-    to: '/admin'
-  }
-])
-
 const userMenuItems = computed<DropdownMenuItem[][]>(() => {
   const header: DropdownMenuItem[] = [
     {
@@ -621,7 +550,10 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
   }
   actions.push({
     label: t('user.settingsAndAbout'),
-    icon: 'i-lucide-settings'
+    icon: 'i-lucide-settings',
+    onSelect() {
+      router.push('/settings')
+    }
   })
   actions.push({
     label: t('user.language'),
@@ -649,81 +581,11 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
   return [header, actions, logout]
 })
 
-const storageUsed = 3.2
-const storageTotal = 10
-const storagePercent = Math.round((storageUsed / storageTotal) * 100)
 </script>
 
 <template>
   <UDashboardGroup>
-    <UDashboardSidebar
-      collapsible
-      resizable
-    >
-      <template #header="{ collapsed }">
-        <RouterLink to="/">
-          <AppLogo
-            v-if="!collapsed"
-            class="h-5 w-auto shrink-0"
-          />
-          <UIcon
-            v-else
-            name="i-lucide-hard-drive"
-            class="size-5 text-primary mx-auto"
-          />
-        </RouterLink>
-      </template>
-
-      <template #default="{ collapsed }">
-        <UNavigationMenu
-          :collapsed="collapsed"
-          :items="items[0]"
-          orientation="vertical"
-        />
-
-        <UNavigationMenu
-          :collapsed="collapsed"
-          :items="items[1]"
-          orientation="vertical"
-        />
-
-        <UNavigationMenu
-          v-if="admin.isAdmin"
-          :collapsed="collapsed"
-          :items="adminItems"
-          orientation="vertical"
-        />
-      </template>
-
-      <template #footer="{ collapsed }">
-        <div
-          v-if="!collapsed"
-          class="w-full px-1 py-1 space-y-1.5"
-        >
-          <div class="flex items-center justify-between text-xs text-muted">
-            <span>{{ t('nav.storage') }}</span>
-            <ULink
-              to="#"
-              class="text-primary font-medium"
-            >
-              {{ t('nav.storageDetails') }}
-            </ULink>
-          </div>
-          <UProgress
-            :value="storagePercent"
-            size="xs"
-          />
-          <p class="text-xs text-muted">
-            {{ storageUsed }} GB / {{ storageTotal }} GB
-          </p>
-        </div>
-        <UIcon
-          v-else
-          name="i-lucide-database"
-          class="size-5 text-muted mx-auto"
-        />
-      </template>
-    </UDashboardSidebar>
+    <AppSidebar />
 
     <UDashboardPanel>
       <template #header>
