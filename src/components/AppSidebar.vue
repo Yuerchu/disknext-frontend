@@ -41,7 +41,7 @@ const items = computed<NavigationMenuItem[][]>(() => [
     {
       label: t('nav.myFiles'),
       icon: 'i-lucide-folder',
-      to: '/'
+      to: '/home'
     },
     {
       label: t('nav.images'),
@@ -105,7 +105,7 @@ const adminItems = computed<NavigationMenuItem[]>(() => [
     resizable
   >
     <template #header="{ collapsed }">
-      <RouterLink to="/">
+      <RouterLink to="/home">
         <AppLogo
           v-if="!collapsed"
           class="h-5 w-auto shrink-0"

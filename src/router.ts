@@ -2,7 +2,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 const router = createRouter({
   routes: [
-    { path: '/', component: () => import('./pages/index.vue') },
+    { path: '/', component: () => import('./pages/landing.vue'), meta: { guest: true } },
+    { path: '/home', component: () => import('./pages/index.vue') },
     { path: '/settings', component: () => import('./pages/settings.vue') },
     { path: '/session', component: () => import('./pages/session.vue'), meta: { guest: true } },
     {
@@ -18,7 +19,7 @@ const router = createRouter({
         { path: 'nodes', component: () => import('./pages/admin/placeholder.vue') },
         { path: 'groups', component: () => import('./pages/admin/groups.vue') },
         { path: 'users', component: () => import('./pages/admin/users.vue') },
-        { path: 'files', component: () => import('./pages/admin/placeholder.vue') },
+        { path: 'files', component: () => import('./pages/admin/files.vue') },
         { path: 'blobs', component: () => import('./pages/admin/placeholder.vue') },
         { path: 'shares', component: () => import('./pages/admin/placeholder.vue') },
         { path: 'orders', component: () => import('./pages/admin/placeholder.vue') },

@@ -157,7 +157,7 @@ const items = computed<NavigationMenuItem[][]>(() => [
       label: t('admin.backToHome'),
       icon: 'i-lucide-arrow-left',
       onSelect() {
-        router.push('/')
+        router.push('/home')
       }
     }
   ]

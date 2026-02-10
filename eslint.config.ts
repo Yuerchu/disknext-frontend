@@ -12,7 +12,9 @@ export default ts.config(
     languageOptions: {
       globals: {
         ...globals.browser,
-        ...autoImportGlobals.globals
+        ...autoImportGlobals.globals,
+        grecaptcha: 'readonly',
+        turnstile: 'readonly',
       }
     }
   },

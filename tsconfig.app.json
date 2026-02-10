@@ -20,6 +20,9 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
 
+    /* Types */
+    "types": ["grecaptcha", "cloudflare-turnstile"],
+
     /* Paths */
     "paths": {
       "#build/ui/*": ["./node_modules/.nuxt-ui/ui/*"]

@@ -5,9 +5,11 @@ import { useI18n } from 'vue-i18n'
 import { setLocale } from '../i18n'
 import api from '../utils/api'
 import { useAuthStore } from '../stores/auth'
+import { useSiteConfigStore } from '../stores/siteConfig'
 
 const router = useRouter()
 const auth = useAuthStore()
+const siteConfig = useSiteConfigStore()
 const { t, locale } = useI18n()
 
 const supportedLocales = [
@@ -46,8 +48,121 @@ type Schema = z.output<z.ZodObject<{ username: z.ZodString; password: z.ZodStrin
 
 const loading = ref(false)
 const error = ref('')
+const captchaCode = ref('')
+const captchaContainerRef = ref<HTMLDivElement>()
+const captchaLoaded = ref(false)
+let captchaWidgetId: number | string | null | undefined
+
+// Load site config on mount
+siteConfig.fetchConfig()
+
+function loadScript(src: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) {
+      resolve()
+      return
+    }
+    const script = document.createElement('script')
+    script.src = src
+    script.async = true
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error(`Failed to load script: ${src}`))
+    document.head.appendChild(script)
+  })
+}
+
+function renderCaptchaWidget() {
+  const key = siteConfig.captchaKey
+  if (!captchaContainerRef.value || !key) return
+
+  captchaContainerRef.value.innerHTML = ''
+
+  if (siteConfig.captchaType === 'gcaptcha') {
+    captchaWidgetId = grecaptcha.render(captchaContainerRef.value, {
+      sitekey: key,
+      callback: (token: string) => { captchaCode.value = token },
+      'expired-callback': () => { captchaCode.value = '' },
+    })
+  } else if (siteConfig.captchaType === 'cloudflare turnstile') {
+    captchaWidgetId = turnstile.render(captchaContainerRef.value, {
+      sitekey: key,
+      callback: (token: string) => { captchaCode.value = token },
+      'expired-callback': () => { captchaCode.value = '' },
+    })
+  }
+}
+
+function resetCaptcha() {
+  captchaCode.value = ''
+  if (captchaWidgetId === undefined) return
+
+  if (siteConfig.captchaType === 'gcaptcha') {
+    grecaptcha.reset(captchaWidgetId as number)
+  } else if (siteConfig.captchaType === 'cloudflare turnstile') {
+    turnstile.reset(captchaWidgetId as string)
+  }
+}
+
+async function initCaptcha() {
+  if (!siteConfig.loginCaptcha || !siteConfig.captchaKey) return
+  if (siteConfig.captchaType === 'default') return
+
+  try {
+    if (siteConfig.captchaType === 'gcaptcha') {
+      await loadScript('https://www.google.com/recaptcha/api.js?render=explicit')
+      await new Promise<void>((resolve) => {
+        if (typeof grecaptcha !== 'undefined') {
+          resolve()
+        } else {
+          const check = setInterval(() => {
+            if (typeof grecaptcha !== 'undefined') {
+              clearInterval(check)
+              resolve()
+            }
+          }, 100)
+        }
+      })
+    } else if (siteConfig.captchaType === 'cloudflare turnstile') {
+      await loadScript('https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit')
+      await new Promise<void>((resolve) => {
+        if (typeof turnstile !== 'undefined') {
+          resolve()
+        } else {
+          const check = setInterval(() => {
+            if (typeof turnstile !== 'undefined') {
+              clearInterval(check)
+              resolve()
+            }
+          }, 100)
+        }
+      })
+    }
+
+    captchaLoaded.value = true
+    nextTick(() => renderCaptchaWidget())
+  } catch {
+    // script load failed — allow login without captcha
+  }
+}
+
+onMounted(() => {
+  watch(
+    () => siteConfig.fetched,
+    (fetched) => {
+      if (fetched) initCaptcha()
+    },
+    { immediate: true }
+  )
+})
 
 async function onSubmit(payload: FormSubmitEvent<Schema>) {
+  if (siteConfig.loginCaptcha && siteConfig.captchaType !== 'default') {
+    if (!captchaCode.value) {
+      error.value = t('session.captchaRequired')
+      return
+    }
+  }
+
   loading.value = true
   error.value = ''
 
@@ -57,12 +172,16 @@ async function onSubmit(payload: FormSubmitEvent<Schema>) {
     params.append('username', payload.data.username)
     params.append('password', payload.data.password)
 
+    if (siteConfig.loginCaptcha && captchaCode.value) {
+      params.append('captcha_code', captchaCode.value)
+    }
+
     const { data } = await api.post('/api/v1/user/session', params, {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
     })
 
     auth.setSession(data)
-    router.push('/')
+    router.push('/home')
   } catch (e: unknown) {
     const err = e as { response?: { data?: { detail?: unknown } }; message?: string }
     const detail = err.response?.data?.detail
@@ -73,6 +192,7 @@ async function onSubmit(payload: FormSubmitEvent<Schema>) {
     } else {
       error.value = err.message || t('errors.loginFailedCheck')
     }
+    resetCaptcha()
   } finally {
     loading.value = false
   }
@@ -101,6 +221,24 @@ async function onSubmit(payload: FormSubmitEvent<Schema>) {
             icon="i-lucide-circle-x"
             :title="error"
           />
+        </template>
+
+        <template
+          v-if="siteConfig.loginCaptcha && siteConfig.captchaType !== 'default'"
+          #footer
+        >
+          <div class="flex justify-center">
+            <div
+              v-if="captchaLoaded"
+              ref="captchaContainerRef"
+            />
+            <p
+              v-else
+              class="text-sm text-muted"
+            >
+              {{ t('session.captchaLoading') }}
+            </p>
+          </div>
         </template>
       </UAuthForm>
 

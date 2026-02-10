@@ -47,7 +47,7 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.admin && !admin.isAdmin) {
-    return '/'
+    return '/home'
   }
 
   return true
