@@ -488,6 +488,14 @@ export default {
     message: '抱歉，您访问的页面不存在。',
     backHome: '返回首页',
   },
+  selection: {
+    selectedCount: '已选择 {n} 项',
+    selectAll: '全选',
+    deselectAll: '取消全选',
+    deleteSelected: '删除所选',
+    copyTo: '拷贝到',
+    moveTo: '移动到',
+  },
   objectPicker: {
     copyTitle: '拷贝到',
     moveTitle: '移动到',

@@ -1,18 +1,22 @@
 <script setup lang="ts">
-import { h, computed, ref, watch, onMounted, resolveComponent } from 'vue'
+import { h, computed, ref, watch, onMounted, onUnmounted, resolveComponent } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { setLocale } from '../i18n'
 import type { BreadcrumbItem, DropdownMenuItem, TableColumn, ContextMenuItem, TableRow } from '@nuxt/ui'
+
+type RowSelectionState = Record<string, boolean>
 import { useAdminStore } from '../stores/admin'
 import { useUserStore } from '../stores/user'
 import { useAuthStore } from '../stores/auth'
 import { useUploadStore } from '../stores/upload'
 import type { UploadTask, UploadSession } from '../stores/upload'
 import ObjectPicker from '../components/ObjectPicker.vue'
+import { useAreaSelection } from '../composables/useAreaSelection'
 import api from '../utils/api'
 
 const UIcon = resolveComponent('UIcon')
+const UCheckbox = resolveComponent('UCheckbox')
 
 const router = useRouter()
 const toast = useToast()
@@ -125,6 +129,7 @@ const loading = ref(true)
 const currentPath = ref('')
 
 async function fetchDirectory(path: string = '') {
+  clearSelection()
   loading.value = true
   try {
     const url = path ? `/api/v1/directory/${path}` : '/api/v1/directory/'
@@ -208,7 +213,83 @@ const sortedObjects = computed(() => {
   return objs
 })
 
+// Selection state
+const rowSelection = ref<RowSelectionState>({})
+const lastClickedIndex = ref<number | null>(null)
+
+const selectedObjects = computed(() =>
+  sortedObjects.value.filter(obj => rowSelection.value[obj.id])
+)
+const isSelectionMode = computed(() => selectedObjects.value.length > 0)
+
+function clearSelection() {
+  rowSelection.value = {}
+  lastClickedIndex.value = null
+}
+
+// Area selection
+const fileListContainerRef = ref<HTMLElement | null>(null)
+const areaSelectionEnabled = computed(() => !loading.value && sortedObjects.value.length > 0)
+
+function onAreaSelectionChange(indices: number[], ctrlKey: boolean, metaKey: boolean) {
+  const isMac = navigator.userAgent.includes('Mac')
+  const isAdditive = (ctrlKey && !isMac) || (metaKey && isMac)
+
+  if (isAdditive) {
+    const newSel = { ...rowSelection.value }
+    indices.forEach(i => {
+      const obj = sortedObjects.value[i]
+      if (obj) newSel[obj.id] = true
+    })
+    rowSelection.value = newSel
+  } else {
+    const newSel: RowSelectionState = {}
+    indices.forEach(i => {
+      const obj = sortedObjects.value[i]
+      if (obj) newSel[obj.id] = true
+    })
+    rowSelection.value = newSel
+  }
+}
+
+const areaSelection = useAreaSelection(
+  fileListContainerRef,
+  computed(() => sortedObjects.value.length),
+  {
+    enabled: areaSelectionEnabled,
+    tbodySelector: '.file-list-tbody',
+    onSelectionChange: onAreaSelectionChange
+  }
+)
+
+// Table meta for selected row styling
+const tableMeta = computed(() => ({
+  class: {
+    tr: (row: { getIsSelected: () => boolean }) => {
+      if (row.getIsSelected()) return 'bg-primary/10'
+      return ''
+    }
+  }
+}))
+
 const columns = computed<TableColumn<FileObject>[]>(() => [
+  {
+    id: 'select',
+    header: ({ table }) => h(UCheckbox, {
+      'modelValue': table.getIsSomePageRowsSelected() ? 'indeterminate' : table.getIsAllPageRowsSelected(),
+      'onUpdate:modelValue': (value: boolean | 'indeterminate') => table.toggleAllPageRowsSelected(!!value),
+      'aria-label': t('selection.selectAll')
+    }),
+    cell: ({ row }) => h(UCheckbox, {
+      'modelValue': row.getIsSelected(),
+      'onUpdate:modelValue': (value: boolean | 'indeterminate') => row.toggleSelected(!!value),
+      'onClick': (e: Event) => e.stopPropagation(),
+      'aria-label': t('selection.selectAll')
+    }),
+    enableSorting: false,
+    enableHiding: false,
+    meta: { class: { th: 'w-10', td: 'w-10' } }
+  },
   {
     accessorKey: 'name',
     header: t('file.name'),
@@ -360,7 +441,53 @@ function resetContextMenu() {
   contextItems.value = getEmptyAreaItems()
 }
 
+function getBulkItems(): ContextMenuItem[][] {
+  const ids = selectedObjects.value.map(o => o.id)
+  const count = ids.length
+  return [
+    [
+      {
+        label: t('selection.copyTo'),
+        icon: 'i-lucide-clipboard-copy',
+        onSelect() {
+          pickerMode.value = 'copy'
+          pickerSourceIds.value = ids
+          pickerOpen.value = true
+        }
+      },
+      {
+        label: t('selection.moveTo'),
+        icon: 'i-lucide-move',
+        onSelect() {
+          pickerMode.value = 'move'
+          pickerSourceIds.value = ids
+          pickerOpen.value = true
+        }
+      }
+    ],
+    [
+      {
+        label: t('selection.deleteSelected') + ` (${count})`,
+        icon: 'i-lucide-trash-2',
+        color: 'error' as const,
+        onSelect() {
+          deleteObjects(ids, t('selection.selectedCount', { n: count }))
+        }
+      }
+    ]
+  ]
+}
+
 function onRowContextMenu(_e: Event, row: TableRow<FileObject>) {
+  // If right-clicking a selected row and multiple items are selected, show bulk menu
+  if (rowSelection.value[row.original.id] && selectedObjects.value.length > 1) {
+    contextItems.value = getBulkItems()
+    return
+  }
+  // Otherwise, clear selection and show single-item menu
+  if (selectedObjects.value.length > 0) {
+    clearSelection()
+  }
   if (row.original.type === 'folder') {
     contextItems.value = getFolderItems(row.original)
   } else {
@@ -407,6 +534,7 @@ async function confirmDelete() {
       data: { ids: deleteTargetIds.value, permanent: deletePermanent.value }
     })
     deleteModalOpen.value = false
+    clearSelection()
     fetchDirectory(currentPath.value)
   } catch (e: unknown) {
     showApiError(e as AxiosError<ApiErrorResponse>, t('errors.deleteFailed'))
@@ -585,6 +713,7 @@ async function confirmCopyMove(selected: { id: string, name: string, path: strin
       })
     }
     pickerOpen.value = false
+    clearSelection()
     fetchDirectory(currentPath.value)
     toast.add({
       title: pickerMode.value === 'copy'
@@ -852,10 +981,75 @@ watch(
   }
 )
 
+// Row select handler (click on row)
+function onRowSelect(e: Event, row: TableRow<FileObject>) {
+  const mouseEvent = e as MouseEvent
+  const isMac = navigator.userAgent.includes('Mac')
+  const ctrlPressed = (mouseEvent.ctrlKey && !isMac) || (mouseEvent.metaKey && isMac)
+  const shiftPressed = mouseEvent.shiftKey
+
+  if (ctrlPressed) {
+    // Ctrl/Cmd + click: toggle individual selection
+    row.toggleSelected(!row.getIsSelected())
+    lastClickedIndex.value = sortedObjects.value.findIndex(o => o.id === row.original.id)
+    return
+  }
+
+  if (shiftPressed) {
+    // Shift + click: range selection
+    const currentIndex = sortedObjects.value.findIndex(o => o.id === row.original.id)
+    if (currentIndex >= 0 && lastClickedIndex.value !== null) {
+      const start = Math.min(lastClickedIndex.value, currentIndex)
+      const end = Math.max(lastClickedIndex.value, currentIndex)
+      const newSel: RowSelectionState = {}
+      for (let i = start; i <= end; i++) {
+        newSel[sortedObjects.value[i].id] = true
+      }
+      rowSelection.value = newSel
+    } else if (currentIndex >= 0) {
+      // No previous click: just select this one
+      row.toggleSelected(!row.getIsSelected())
+      lastClickedIndex.value = currentIndex
+    }
+    return
+  }
+
+  // Normal click (no modifier): always open/navigate, clear selection
+  if (isSelectionMode.value) {
+    clearSelection()
+  }
+  if (row.original.type === 'folder') {
+    navigateToFolder(row.original.name)
+  }
+}
+
+// Keyboard shortcuts
+function handleKeydown(e: KeyboardEvent) {
+  const target = e.target as HTMLElement
+  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+
+  if (e.key === 'Escape' && isSelectionMode.value) {
+    clearSelection()
+    e.preventDefault()
+  }
+
+  if ((e.ctrlKey || e.metaKey) && e.key === 'a' && sortedObjects.value.length > 0) {
+    e.preventDefault()
+    const newSel: RowSelectionState = {}
+    sortedObjects.value.forEach(obj => { newSel[obj.id] = true })
+    rowSelection.value = newSel
+  }
+}
+
 onMounted(() => {
   admin.checkAdmin()
   fetchDirectory()
   contextItems.value = getEmptyAreaItems()
+  document.addEventListener('keydown', handleKeydown)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeydown)
 })
 
 const userMenuItems = computed<DropdownMenuItem[][]>(() => {
@@ -996,7 +1190,9 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
       <template #body>
         <UContextMenu :items="contextItems">
           <div
+            ref="fileListContainerRef"
             class="flex flex-col h-full relative"
+            @mousedown="areaSelection.onMouseDown"
             @contextmenu.capture="resetContextMenu"
             @dragenter.prevent="onDragEnter"
             @dragover.prevent
@@ -1017,6 +1213,76 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
                 </p>
               </div>
             </div>
+
+            <!-- Batch action toolbar (overlays table header) -->
+            <div
+              v-if="isSelectionMode"
+              class="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-2.5 bg-elevated border-b border-accented"
+            >
+              <div class="flex items-center gap-2">
+                <UCheckbox
+                  :model-value="selectedObjects.length === sortedObjects.length ? true : 'indeterminate'"
+                  :aria-label="t('selection.selectAll')"
+                  @update:model-value="(val: boolean | 'indeterminate') => {
+                    if (val) {
+                      const newSel: Record<string, boolean> = {}
+                      sortedObjects.forEach(obj => { newSel[obj.id] = true })
+                      rowSelection = newSel
+                    } else {
+                      clearSelection()
+                    }
+                  }"
+                />
+                <span class="text-sm font-medium">
+                  {{ t('selection.selectedCount', { n: selectedObjects.length }) }}
+                </span>
+              </div>
+              <div class="flex items-center gap-1">
+                <UButton
+                  :label="t('selection.copyTo')"
+                  icon="i-lucide-clipboard-copy"
+                  color="neutral"
+                  variant="ghost"
+                  size="sm"
+                  @click="() => {
+                    pickerMode = 'copy'
+                    pickerSourceIds = selectedObjects.map(o => o.id)
+                    pickerOpen = true
+                  }"
+                />
+                <UButton
+                  :label="t('selection.moveTo')"
+                  icon="i-lucide-move"
+                  color="neutral"
+                  variant="ghost"
+                  size="sm"
+                  @click="() => {
+                    pickerMode = 'move'
+                    pickerSourceIds = selectedObjects.map(o => o.id)
+                    pickerOpen = true
+                  }"
+                />
+                <UButton
+                  :label="t('selection.deleteSelected')"
+                  icon="i-lucide-trash-2"
+                  color="error"
+                  variant="ghost"
+                  size="sm"
+                  @click="deleteObjects(
+                    selectedObjects.map(o => o.id),
+                    t('selection.selectedCount', { n: selectedObjects.length })
+                  )"
+                />
+                <UButton
+                  icon="i-lucide-x"
+                  color="neutral"
+                  variant="ghost"
+                  size="sm"
+                  @click="clearSelection"
+                />
+              </div>
+            </div>
+
             <div
               v-if="loading"
               class="flex-1"
@@ -1037,14 +1303,14 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
             </div>
             <UTable
               v-else
+              v-model:row-selection="rowSelection"
               :data="sortedObjects"
               :columns="columns"
+              :get-row-id="(row: FileObject) => row.id"
+              :meta="tableMeta"
+              :ui="{ tbody: 'file-list-tbody' }"
               class="flex-1"
-              @select="(_e: Event, row: TableRow<FileObject>) => {
-                if (row.original.type === 'folder') {
-                  navigateToFolder(row.original.name)
-                }
-              }"
+              @select="onRowSelect"
               @contextmenu="onRowContextMenu"
             >
               <template #empty>

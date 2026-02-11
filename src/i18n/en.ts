@@ -488,6 +488,14 @@ export default {
     message: 'Sorry, the page you are looking for does not exist.',
     backHome: 'Back to Home',
   },
+  selection: {
+    selectedCount: '{n} item(s) selected',
+    selectAll: 'Select All',
+    deselectAll: 'Deselect All',
+    deleteSelected: 'Delete Selected',
+    copyTo: 'Copy To',
+    moveTo: 'Move To',
+  },
   objectPicker: {
     copyTitle: 'Copy To',
     moveTitle: 'Move To',

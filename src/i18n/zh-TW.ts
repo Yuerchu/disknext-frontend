@@ -488,6 +488,14 @@ export default {
     message: '抱歉，您存取的頁面不存在。',
     backHome: '返回首頁',
   },
+  selection: {
+    selectedCount: '已選擇 {n} 項',
+    selectAll: '全選',
+    deselectAll: '取消全選',
+    deleteSelected: '刪除所選',
+    copyTo: '拷貝到',
+    moveTo: '移動到',
+  },
   objectPicker: {
     copyTitle: '拷貝到',
     moveTitle: '移動到',
