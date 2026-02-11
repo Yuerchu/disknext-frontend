@@ -9,6 +9,7 @@ import { useUserStore } from '../stores/user'
 import { useAuthStore } from '../stores/auth'
 import { useUploadStore } from '../stores/upload'
 import type { UploadTask, UploadSession } from '../stores/upload'
+import ObjectPicker from '../components/ObjectPicker.vue'
 import api from '../utils/api'
 
 const UIcon = resolveComponent('UIcon')
@@ -293,9 +294,9 @@ function getFolderItems(obj: FileObject): ContextMenuItem[][] {
           renameObject(obj)
         }
       },
-      { label: t('contextMenu.copyDuplicate'), icon: 'i-lucide-copy' },
-      { label: t('contextMenu.copyTo'), icon: 'i-lucide-clipboard-copy' },
-      { label: t('contextMenu.moveTo'), icon: 'i-lucide-move' }
+      { label: t('contextMenu.copyDuplicate'), icon: 'i-lucide-copy', onSelect() { duplicateObject(obj) } },
+      { label: t('contextMenu.copyTo'), icon: 'i-lucide-clipboard-copy', onSelect() { openCopyTo(obj) } },
+      { label: t('contextMenu.moveTo'), icon: 'i-lucide-move', onSelect() { openMoveTo(obj) } }
     ],
     [
       { label: t('common.details'), icon: 'i-lucide-info' }
@@ -334,9 +335,9 @@ function getFileItems(obj: FileObject): ContextMenuItem[][] {
           renameObject(obj)
         }
       },
-      { label: t('contextMenu.copyDuplicate'), icon: 'i-lucide-copy' },
-      { label: t('contextMenu.copyTo'), icon: 'i-lucide-clipboard-copy' },
-      { label: t('contextMenu.moveTo'), icon: 'i-lucide-move' },
+      { label: t('contextMenu.copyDuplicate'), icon: 'i-lucide-copy', onSelect() { duplicateObject(obj) } },
+      { label: t('contextMenu.copyTo'), icon: 'i-lucide-clipboard-copy', onSelect() { openCopyTo(obj) } },
+      { label: t('contextMenu.moveTo'), icon: 'i-lucide-move', onSelect() { openMoveTo(obj) } },
       { label: t('contextMenu.getDirectLink'), icon: 'i-lucide-link' }
     ],
     [
@@ -531,6 +532,75 @@ function copyShareLink() {
   if (!shareResult.value) return
   navigator.clipboard.writeText(getShareLink(shareResult.value.shareId))
   toast.add({ title: t('shareModal.copied'), icon: 'i-lucide-check-circle', color: 'success' })
+}
+
+// Object picker for copy/move
+const pickerOpen = ref(false)
+const pickerMode = ref<'copy' | 'move'>('copy')
+const pickerSourceIds = ref<string[]>([])
+
+async function duplicateObject(obj: FileObject) {
+  if (!directory.value) return
+  try {
+    await api.post('/api/v1/object/copy', {
+      src_ids: [obj.id],
+      dst_id: directory.value.id
+    })
+    fetchDirectory(currentPath.value)
+    toast.add({
+      title: t('objectPicker.duplicateSuccess'),
+      icon: 'i-lucide-check-circle',
+      color: 'success'
+    })
+  } catch (e: unknown) {
+    showApiError(e as AxiosError<ApiErrorResponse>, t('objectPicker.duplicateFailed'))
+  }
+}
+
+function openCopyTo(obj: FileObject) {
+  pickerMode.value = 'copy'
+  pickerSourceIds.value = [obj.id]
+  pickerOpen.value = true
+}
+
+function openMoveTo(obj: FileObject) {
+  pickerMode.value = 'move'
+  pickerSourceIds.value = [obj.id]
+  pickerOpen.value = true
+}
+
+async function confirmCopyMove(selected: { id: string, name: string, path: string }[]) {
+  if (!selected.length) return
+  const dstId = selected[0].id
+  try {
+    if (pickerMode.value === 'copy') {
+      await api.post('/api/v1/object/copy', {
+        src_ids: pickerSourceIds.value,
+        dst_id: dstId
+      })
+    } else {
+      await api.patch('/api/v1/object/', {
+        src_ids: pickerSourceIds.value,
+        dst_id: dstId
+      })
+    }
+    pickerOpen.value = false
+    fetchDirectory(currentPath.value)
+    toast.add({
+      title: pickerMode.value === 'copy'
+        ? t('objectPicker.copySuccess')
+        : t('objectPicker.moveSuccess'),
+      icon: 'i-lucide-check-circle',
+      color: 'success'
+    })
+  } catch (e: unknown) {
+    showApiError(
+      e as AxiosError<ApiErrorResponse>,
+      pickerMode.value === 'copy'
+        ? t('objectPicker.copyFailed')
+        : t('objectPicker.moveFailed')
+    )
+  }
 }
 
 // File upload
@@ -1216,6 +1286,14 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
       </template>
     </template>
   </UModal>
+
+  <ObjectPicker
+    v-model:open="pickerOpen"
+    :title="pickerMode === 'copy' ? t('objectPicker.copyTitle') : t('objectPicker.moveTitle')"
+    type="folder"
+    :exclude-ids="pickerMode === 'move' ? pickerSourceIds : []"
+    @confirm="confirmCopyMove"
+  />
 
   <input
     ref="fileInputRef"
