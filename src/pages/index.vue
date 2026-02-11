@@ -25,6 +25,76 @@ import type { AxiosError } from 'axios'
 
 type ApiErrorResponse = { detail?: string }
 
+interface FileWithPath {
+  file: File
+  relativePath: string
+}
+
+function readEntriesRecursive(dirEntry: FileSystemDirectoryEntry, basePath: string): Promise<FileWithPath[]> {
+  return new Promise((resolve, reject) => {
+    const reader = dirEntry.createReader()
+    const allEntries: FileSystemEntry[] = []
+
+    function readBatch() {
+      reader.readEntries((entries) => {
+        if (entries.length === 0) {
+          // All entries read, now process them
+          const promises: Promise<FileWithPath[]>[] = []
+          for (const entry of allEntries) {
+            if (entry.isFile) {
+              promises.push(new Promise((res, rej) => {
+                (entry as FileSystemFileEntry).file(
+                  (file) => res([{ file, relativePath: basePath + file.name }]),
+                  rej
+                )
+              }))
+            } else if (entry.isDirectory) {
+              promises.push(readEntriesRecursive(entry as FileSystemDirectoryEntry, basePath + entry.name + '/'))
+            }
+          }
+          Promise.all(promises).then((results) => resolve(results.flat()), reject)
+        } else {
+          allEntries.push(...entries)
+          readBatch()
+        }
+      }, reject)
+    }
+
+    readBatch()
+  })
+}
+
+async function collectDroppedFiles(dataTransfer: DataTransfer): Promise<FileWithPath[]> {
+  const items = dataTransfer.items
+  if (!items) return []
+
+  const promises: Promise<FileWithPath[]>[] = []
+  for (let i = 0; i < items.length; i++) {
+    const entry = items[i].webkitGetAsEntry?.()
+    if (entry) {
+      if (entry.isDirectory) {
+        promises.push(readEntriesRecursive(entry as FileSystemDirectoryEntry, entry.name + '/'))
+      } else if (entry.isFile) {
+        promises.push(new Promise((res, rej) => {
+          (entry as FileSystemFileEntry).file(
+            (file) => res([{ file, relativePath: file.name }]),
+            rej
+          )
+        }))
+      }
+    } else {
+      // Fallback: browser doesn't support webkitGetAsEntry
+      const file = items[i].getAsFile()
+      if (file) {
+        promises.push(Promise.resolve([{ file, relativePath: file.name }]))
+      }
+    }
+  }
+
+  const results = await Promise.all(promises)
+  return results.flat()
+}
+
 interface FileObject {
   id: string
   name: string
@@ -171,7 +241,7 @@ function getEmptyAreaItems(): ContextMenuItem[][] {
   return [
     [
       { label: t('contextMenu.uploadFile'), icon: 'i-lucide-upload', onSelect() { triggerFileUpload() } },
-      { label: t('contextMenu.uploadFolder'), icon: 'i-lucide-folder-up' },
+      { label: t('contextMenu.uploadFolder'), icon: 'i-lucide-folder-up', onSelect() { triggerFolderUpload() } },
       { label: t('contextMenu.offlineDownload'), icon: 'i-lucide-cloud-download' }
     ],
     [
@@ -215,7 +285,7 @@ function getFolderItems(obj: FileObject): ContextMenuItem[][] {
       { label: t('common.download'), icon: 'i-lucide-download' }
     ],
     [
-      { label: t('common.share'), icon: 'i-lucide-share-2' },
+      { label: t('common.share'), icon: 'i-lucide-share-2', onSelect() { openShareModal(obj) } },
       {
         label: t('common.rename'),
         icon: 'i-lucide-pencil',
@@ -256,7 +326,7 @@ function getFileItems(obj: FileObject): ContextMenuItem[][] {
       }
     ],
     [
-      { label: t('common.share'), icon: 'i-lucide-share-2' },
+      { label: t('common.share'), icon: 'i-lucide-share-2', onSelect() { openShareModal(obj) } },
       {
         label: t('common.rename'),
         icon: 'i-lucide-pencil',
@@ -398,6 +468,71 @@ async function confirmCreate() {
   }
 }
 
+// Share modal
+const shareModalOpen = ref(false)
+const shareTargetId = ref('')
+const shareTargetName = ref('')
+const shareCreating = ref(false)
+const shareResult = ref<{ instanceId: string; shareId: string } | null>(null)
+
+const shareHasExpiry = ref(false)
+const shareExpiresDateTime = ref('')
+
+const shareForm = ref({
+  password: '',
+  remain_downloads: null as number | null,
+  preview_enabled: true,
+  score: 0,
+})
+
+function openShareModal(obj: FileObject) {
+  shareTargetId.value = obj.id
+  shareTargetName.value = obj.name
+  shareHasExpiry.value = false
+  shareExpiresDateTime.value = ''
+  shareForm.value = {
+    password: '',
+    remain_downloads: null,
+    preview_enabled: true,
+    score: 0,
+  }
+  shareResult.value = null
+  shareCreating.value = false
+  shareModalOpen.value = true
+}
+
+function getShareLink(shareId: string): string {
+  return `${window.location.origin}/s/${shareId}`
+}
+
+async function confirmShare() {
+  shareCreating.value = true
+  try {
+    const body: Record<string, unknown> = {
+      object_id: shareTargetId.value,
+      preview_enabled: shareForm.value.preview_enabled,
+      score: shareForm.value.score,
+    }
+    if (shareForm.value.password) body.password = shareForm.value.password
+    if (shareHasExpiry.value && shareExpiresDateTime.value) {
+      body.expires = new Date(shareExpiresDateTime.value).toISOString()
+    }
+    if (shareForm.value.remain_downloads != null) body.remain_downloads = shareForm.value.remain_downloads
+    const { data } = await api.post<{ instance_id: string; share_id: string }>('/api/v1/share/', body)
+    shareResult.value = { instanceId: data.instance_id, shareId: data.share_id }
+  } catch (e: unknown) {
+    showApiError(e as AxiosError<ApiErrorResponse>, t('shareModal.failed'))
+  } finally {
+    shareCreating.value = false
+  }
+}
+
+function copyShareLink() {
+  if (!shareResult.value) return
+  navigator.clipboard.writeText(getShareLink(shareResult.value.shareId))
+  toast.add({ title: t('shareModal.copied'), icon: 'i-lucide-check-circle', color: 'success' })
+}
+
 // File upload
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const dragging = ref(false)
@@ -416,13 +551,13 @@ function onDragLeave() {
   }
 }
 
-async function createUploadSession(file: File): Promise<UploadSession | null> {
+async function createUploadSession(file: File, parentId?: string): Promise<UploadSession | null> {
   if (!directory.value) return null
   try {
     const { data } = await api.put<UploadSession>('/api/v1/file/upload/', {
       file_name: file.name,
       file_size: file.size,
-      parent_id: directory.value.id,
+      parent_id: parentId || directory.value.id,
       policy_id: directory.value.policy.id
     })
     return data
@@ -459,8 +594,114 @@ async function startUpload(files: FileList | File[]) {
   }
 }
 
+async function uploadDirectoryTree(filesWithPaths: FileWithPath[]) {
+  if (!directory.value) return
+
+  // Extract all unique directory paths
+  const dirPaths = new Set<string>()
+  for (const f of filesWithPaths) {
+    const parts = f.relativePath.split('/')
+    for (let i = 1; i < parts.length; i++) {
+      dirPaths.add(parts.slice(0, i).join('/'))
+    }
+  }
+
+  // Sort by depth (parent first)
+  const sortedDirs = [...dirPaths].sort((a, b) => a.split('/').length - b.split('/').length)
+
+  // Map directory path to its ID
+  const dirIdMap = new Map<string, string>()
+  dirIdMap.set('', directory.value.id)
+
+  const failedDirs = new Set<string>()
+
+  // Create directories sequentially
+  for (const dirPath of sortedDirs) {
+    const parentPath = dirPath.includes('/') ? dirPath.slice(0, dirPath.lastIndexOf('/')) : ''
+    const name = dirPath.includes('/') ? dirPath.slice(dirPath.lastIndexOf('/') + 1) : dirPath
+
+    // Skip if parent failed
+    if (failedDirs.has(parentPath)) {
+      failedDirs.add(dirPath)
+      continue
+    }
+
+    const parentId = dirIdMap.get(parentPath)
+    if (!parentId) {
+      failedDirs.add(dirPath)
+      continue
+    }
+
+    try {
+      await api.post('/api/v1/directory/', { parent_id: parentId, name })
+    } catch (e: unknown) {
+      const err = e as AxiosError<ApiErrorResponse>
+      if (err.response?.status !== 409) {
+        failedDirs.add(dirPath)
+        toast.add({
+          title: t('upload.folderCreateFailed', { name }),
+          icon: 'i-lucide-circle-x',
+          color: 'error'
+        })
+        continue
+      }
+      // 409 = already exists, proceed to fetch its ID below
+    }
+
+    // Fetch the directory to get its ID reliably
+    try {
+      const fullPath = currentPath.value ? `${currentPath.value}/${dirPath}` : dirPath
+      const { data } = await api.get<DirectoryResponse>(`/api/v1/directory/${fullPath}`)
+      dirIdMap.set(dirPath, data.id)
+    } catch {
+      failedDirs.add(dirPath)
+      toast.add({
+        title: t('upload.folderCreateFailed', { name }),
+        icon: 'i-lucide-circle-x',
+        color: 'error'
+      })
+    }
+  }
+
+  // Upload files
+  for (const f of filesWithPaths) {
+    const parentPath = f.relativePath.includes('/')
+      ? f.relativePath.slice(0, f.relativePath.lastIndexOf('/'))
+      : ''
+
+    // Skip if parent directory failed
+    if (failedDirs.has(parentPath)) continue
+
+    const parentId = dirIdMap.get(parentPath)
+    if (!parentId) continue
+
+    const session = await createUploadSession(f.file, parentId)
+    if (session) {
+      upload.addTask(f.file, session)
+    }
+  }
+}
+
+const folderInputRef = ref<HTMLInputElement | null>(null)
+
 function triggerFileUpload() {
   fileInputRef.value?.click()
+}
+
+function triggerFolderUpload() {
+  folderInputRef.value?.click()
+}
+
+async function onFolderSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  if (!input.files?.length || !directory.value) return
+  const filesWithPaths: FileWithPath[] = Array.from(input.files).map(file => ({
+    file,
+    relativePath: file.webkitRelativePath || file.name
+  }))
+  await uploadDirectoryTree(filesWithPaths)
+  fetchDirectory(currentPath.value)
+  input.value = ''
 }
 
 function onFilesSelected(event: Event) {
@@ -471,10 +712,28 @@ function onFilesSelected(event: Event) {
   }
 }
 
-function onDrop(event: DragEvent) {
+async function onDrop(event: DragEvent) {
   dragCounter = 0
   dragging.value = false
-  if (event.dataTransfer?.files?.length && directory.value) {
+  if (!event.dataTransfer || !directory.value) return
+
+  // Check if any dropped item is a directory
+  let hasDirectory = false
+  const items = event.dataTransfer.items
+  if (items) {
+    for (let i = 0; i < items.length; i++) {
+      const entry = items[i].webkitGetAsEntry?.()
+      if (entry?.isDirectory) { hasDirectory = true; break }
+    }
+  }
+
+  if (hasDirectory) {
+    const collected = await collectDroppedFiles(event.dataTransfer)
+    if (collected.length > 0) {
+      await uploadDirectoryTree(collected)
+      fetchDirectory(currentPath.value)
+    }
+  } else if (event.dataTransfer.files.length) {
     startUpload(event.dataTransfer.files)
   }
 }
@@ -581,6 +840,12 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
   return [header, actions, logout]
 })
 
+const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
+  if (upload.tasks.some(t => t.status === 'failed')) return 'error'
+  if (upload.tasks.some(t => t.status === 'uploading')) return 'warning'
+  return 'success'
+})
+
 </script>
 
 <template>
@@ -633,6 +898,18 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
 
           <template #right>
             <UColorModeButton />
+            <UChip
+              :color="uploadChipColor"
+              :show="upload.tasks.length > 0"
+              inset
+            >
+              <UButton
+                icon="i-lucide-upload"
+                color="neutral"
+                variant="ghost"
+                @click="upload.drawerOpen = !upload.drawerOpen"
+              />
+            </UChip>
             <UDropdownMenu
               :items="userMenuItems"
               :content="{ align: 'end' }"
@@ -820,12 +1097,139 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
     </template>
   </UModal>
 
+  <UModal
+    v-model:open="shareModalOpen"
+    :title="t('shareModal.title')"
+    :ui="{ footer: 'justify-end' }"
+  >
+    <template #body>
+      <!-- Result state -->
+      <div
+        v-if="shareResult"
+        class="space-y-4"
+      >
+        <p class="text-sm text-muted">
+          {{ t('shareModal.success') }}
+        </p>
+        <div class="flex items-center gap-2">
+          <UInput
+            :model-value="getShareLink(shareResult.shareId)"
+            readonly
+            class="flex-1"
+          />
+          <UButton
+            icon="i-lucide-copy"
+            color="neutral"
+            variant="outline"
+            @click="copyShareLink"
+          />
+        </div>
+      </div>
+      <!-- Form state -->
+      <div
+        v-else
+        class="space-y-4"
+      >
+        <p class="text-sm">
+          {{ t('shareModal.sharing') }}
+        </p>
+        <UTooltip :text="shareTargetName">
+          <p class="text-sm font-medium truncate max-w-full">
+            {{ shareTargetName }}
+          </p>
+        </UTooltip>
+        <UFormField :label="t('shareModal.password')">
+          <UInput
+            v-model="shareForm.password"
+            type="password"
+            :placeholder="t('shareModal.passwordPlaceholder')"
+            class="w-full"
+          />
+        </UFormField>
+        <UFormField :label="t('shareModal.expires')">
+          <div class="flex items-center gap-2">
+            <UInput
+              v-if="shareHasExpiry"
+              v-model="shareExpiresDateTime"
+              type="datetime-local"
+              class="flex-1"
+            />
+            <span
+              v-else
+              class="text-sm text-muted"
+            >{{ t('shareModal.neverExpire') }}</span>
+            <UButton
+              :icon="shareHasExpiry ? 'i-lucide-infinity' : 'i-lucide-calendar-clock'"
+              color="neutral"
+              variant="outline"
+              @click="shareHasExpiry = !shareHasExpiry"
+            />
+          </div>
+        </UFormField>
+        <UFormField
+          :label="t('shareModal.remainDownloads')"
+          :description="t('shareModal.remainDownloadsDesc')"
+        >
+          <UInputNumber
+            v-model="shareForm.remain_downloads"
+            :min="1"
+            :placeholder="t('shareModal.remainDownloadsPlaceholder')"
+            class="w-full"
+          />
+        </UFormField>
+        <UCheckbox
+          v-model="shareForm.preview_enabled"
+          :label="t('shareModal.previewEnabled')"
+          :description="t('shareModal.previewEnabledDesc')"
+        />
+        <UFormField
+          :label="t('shareModal.score')"
+          :description="t('shareModal.scoreDesc')"
+        >
+          <UInputNumber
+            v-model="shareForm.score"
+            :min="0"
+            class="w-full"
+          />
+        </UFormField>
+      </div>
+    </template>
+    <template #footer>
+      <template v-if="shareResult">
+        <UButton
+          :label="t('common.confirm')"
+          @click="shareModalOpen = false"
+        />
+      </template>
+      <template v-else>
+        <UButton
+          :label="t('common.cancel')"
+          color="neutral"
+          variant="outline"
+          @click="shareModalOpen = false"
+        />
+        <UButton
+          :label="t('shareModal.create')"
+          :loading="shareCreating"
+          @click="confirmShare"
+        />
+      </template>
+    </template>
+  </UModal>
+
   <input
     ref="fileInputRef"
     type="file"
     multiple
     class="hidden"
     @change="onFilesSelected"
+  >
+  <input
+    ref="folderInputRef"
+    type="file"
+    webkitdirectory
+    class="hidden"
+    @change="onFolderSelected"
   >
 
   <UDrawer

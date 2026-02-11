@@ -5,7 +5,9 @@ const router = createRouter({
     { path: '/', component: () => import('./pages/landing.vue'), meta: { guest: true } },
     { path: '/home', component: () => import('./pages/index.vue') },
     { path: '/settings', component: () => import('./pages/settings.vue') },
+    { path: '/shares', component: () => import('./pages/shares.vue') },
     { path: '/session', component: () => import('./pages/session.vue'), meta: { guest: true } },
+    { path: '/s/:code', component: () => import('./pages/share-view.vue'), meta: { guest: true } },
     {
       path: '/admin',
       component: () => import('./pages/admin.vue'),
@@ -13,6 +15,9 @@ const router = createRouter({
       redirect: '/admin/home',
       children: [
         { path: 'home', component: () => import('./pages/admin/home.vue') },
+        { path: 'settings/site', component: () => import('./pages/admin/settings/site.vue') },
+        { path: 'settings/captcha', component: () => import('./pages/admin/settings/captcha.vue') },
+        { path: 'settings/mail', component: () => import('./pages/admin/settings/mail.vue') },
         { path: 'settings/:section', component: () => import('./pages/admin/placeholder.vue') },
         { path: 'fs/:section', component: () => import('./pages/admin/placeholder.vue') },
         { path: 'policies', component: () => import('./pages/admin/placeholder.vue') },
@@ -27,7 +32,8 @@ const router = createRouter({
         { path: 'reports', component: () => import('./pages/admin/placeholder.vue') },
         { path: 'oauth', component: () => import('./pages/admin/placeholder.vue') }
       ]
-    }
+    },
+    { path: '/:pathMatch(.*)*', component: () => import('./pages/not-found.vue') },
   ],
   history: createWebHistory()
 })

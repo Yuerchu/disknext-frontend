@@ -71,7 +71,8 @@ const items = computed<NavigationMenuItem[][]>(() => [
   [
     {
       label: t('nav.myShares'),
-      icon: 'i-lucide-send'
+      icon: 'i-lucide-send',
+      to: '/shares'
     },
     {
       label: t('nav.mountAndClient'),

@@ -15,6 +15,10 @@ export default ts.config(
         ...autoImportGlobals.globals,
         grecaptcha: 'readonly',
         turnstile: 'readonly',
+        FileSystemEntry: 'readonly',
+        FileSystemFileEntry: 'readonly',
+        FileSystemDirectoryEntry: 'readonly',
+        FileSystemDirectoryReader: 'readonly',
       }
     }
   },
