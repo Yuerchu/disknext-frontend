@@ -3,7 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 const router = createRouter({
   routes: [
     { path: '/', component: () => import('./pages/landing.vue'), meta: { guest: true } },
-    { path: '/home', component: () => import('./pages/index.vue') },
+    { path: '/home/:path(.*)*', component: () => import('./pages/index.vue') },
     { path: '/settings', component: () => import('./pages/settings.vue') },
     { path: '/shares', component: () => import('./pages/shares.vue') },
     { path: '/trash', component: () => import('./pages/trash.vue') },

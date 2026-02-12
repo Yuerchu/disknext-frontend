@@ -21,6 +21,7 @@ const UIcon = resolveComponent('UIcon')
 const UCheckbox = resolveComponent('UCheckbox')
 
 const router = useRouter()
+const route = useRoute()
 const toast = useToast()
 const admin = useAdminStore()
 const user = useUserStore()
@@ -129,17 +130,30 @@ interface DirectoryResponse {
 
 const directory = ref<DirectoryResponse | null>(null)
 const loading = ref(true)
-const currentPath = ref('')
+const currentPath = computed(() => {
+  const p = route.params.path
+  if (Array.isArray(p)) return p.join('/')
+  return p || ''
+})
 
-async function fetchDirectory(path: string = '') {
+async function fetchDirectory(path: string) {
   clearSelection()
   loading.value = true
   try {
     const url = path ? `/api/v1/directory/${path}` : '/api/v1/directory/'
     const { data } = await api.get<DirectoryResponse>(url)
     directory.value = data
-    currentPath.value = path
-  } catch {
+  } catch (e: unknown) {
+    const err = e as { response?: { status?: number; data?: { detail?: string } } }
+    const status = err.response?.status
+    if (path && (status === 404 || status === 403)) {
+      const detail = err.response?.data?.detail
+      if (detail) {
+        toast.add({ title: detail, color: 'error' })
+      }
+      router.replace('/home')
+      return
+    }
     directory.value = null
   } finally {
     loading.value = false
@@ -148,17 +162,17 @@ async function fetchDirectory(path: string = '') {
 
 function navigateToFolder(name: string) {
   const newPath = currentPath.value ? `${currentPath.value}/${name}` : name
-  fetchDirectory(newPath)
+  router.push(`/home/${newPath}`)
 }
 
 const pathSegments = computed(() => currentPath.value ? currentPath.value.split('/') : [])
 
 function navigateToBreadcrumb(index: number) {
   if (index === 0) {
-    fetchDirectory('')
+    router.push('/home')
   } else {
     const parts = pathSegments.value
-    fetchDirectory(parts.slice(0, index).join('/'))
+    router.push(`/home/${parts.slice(0, index).join('/')}`)
   }
 }
 
@@ -1135,9 +1149,12 @@ function handleKeydown(e: KeyboardEvent) {
   }
 }
 
+watch(currentPath, (path) => {
+  fetchDirectory(path)
+}, { immediate: true })
+
 onMounted(() => {
   admin.checkAdmin()
-  fetchDirectory()
   contextItems.value = getEmptyAreaItems()
   document.addEventListener('keydown', handleKeydown)
 })
