@@ -49,6 +49,9 @@ type Schema = z.output<z.ZodObject<{ username: z.ZodString; password: z.ZodStrin
 const loading = ref(false)
 const error = ref('')
 const captchaCode = ref('')
+const tfaRequired = ref(false)
+const otpCode = ref<number[]>([])
+const pendingCredentials = ref<{ username: string; password: string } | null>(null)
 const captchaContainerRef = ref<HTMLDivElement>()
 const captchaLoaded = ref(false)
 let captchaWidgetId: number | string | null | undefined
@@ -155,25 +158,22 @@ onMounted(() => {
   )
 })
 
-async function onSubmit(payload: FormSubmitEvent<Schema>) {
-  if (siteConfig.loginCaptcha && siteConfig.captchaType !== 'default') {
-    if (!captchaCode.value) {
-      error.value = t('session.captchaRequired')
-      return
-    }
-  }
-
+async function submitLogin(username: string, password: string, otp?: string) {
   loading.value = true
   error.value = ''
 
   try {
     const params = new URLSearchParams()
     params.append('grant_type', 'password')
-    params.append('username', payload.data.username)
-    params.append('password', payload.data.password)
+    params.append('username', username)
+    params.append('password', password)
 
     if (siteConfig.loginCaptcha && captchaCode.value) {
       params.append('captcha_code', captchaCode.value)
+    }
+
+    if (otp) {
+      params.append('otp_code', otp)
     }
 
     const { data } = await api.post('/api/v1/user/session', params, {
@@ -183,7 +183,16 @@ async function onSubmit(payload: FormSubmitEvent<Schema>) {
     auth.setSession(data)
     router.push('/home')
   } catch (e: unknown) {
-    const err = e as { response?: { data?: { detail?: unknown } }; message?: string }
+    const err = e as { response?: { status?: number; data?: { detail?: unknown } }; message?: string }
+
+    if (err.response?.status === 428) {
+      pendingCredentials.value = { username, password }
+      tfaRequired.value = true
+      otpCode.value = []
+      error.value = ''
+      return
+    }
+
     const detail = err.response?.data?.detail
     if (Array.isArray(detail)) {
       error.value = detail[0]?.msg || t('errors.loginFailed')
@@ -192,17 +201,104 @@ async function onSubmit(payload: FormSubmitEvent<Schema>) {
     } else {
       error.value = err.message || t('errors.loginFailedCheck')
     }
-    resetCaptcha()
+
+    if (tfaRequired.value) {
+      otpCode.value = []
+    } else {
+      resetCaptcha()
+    }
   } finally {
     loading.value = false
   }
+}
+
+async function onSubmit(payload: FormSubmitEvent<Schema>) {
+  if (siteConfig.loginCaptcha && siteConfig.captchaType !== 'default') {
+    if (!captchaCode.value) {
+      error.value = t('session.captchaRequired')
+      return
+    }
+  }
+
+  await submitLogin(payload.data.username, payload.data.password)
+}
+
+function onOtpComplete() {
+  if (!pendingCredentials.value) return
+  const code = otpCode.value.join('')
+  if (code.length !== 6) return
+  submitLogin(pendingCredentials.value.username, pendingCredentials.value.password, code)
+}
+
+function cancelTfa() {
+  tfaRequired.value = false
+  pendingCredentials.value = null
+  otpCode.value = []
+  error.value = ''
 }
 </script>
 
 <template>
   <div class="flex flex-col items-center justify-center min-h-svh p-4">
     <UPageCard class="w-full max-w-md">
+      <!-- 2FA OTP Input -->
+      <div
+        v-if="tfaRequired"
+        class="flex flex-col items-center gap-6 p-6"
+      >
+        <UIcon
+          name="i-lucide-shield-check"
+          class="size-10 text-primary"
+        />
+        <div class="text-center">
+          <h2 class="text-lg font-semibold">
+            {{ t('session.twoFactorRequired') }}
+          </h2>
+          <p class="text-sm text-muted mt-1">
+            {{ t('session.twoFactorHint') }}
+          </p>
+        </div>
+
+        <UAlert
+          v-if="error"
+          color="error"
+          icon="i-lucide-circle-x"
+          :title="error"
+          class="w-full"
+        />
+
+        <UPinInput
+          v-model="otpCode"
+          :length="6"
+          type="number"
+          otp
+          autofocus
+          :disabled="loading"
+          @complete="onOtpComplete"
+        />
+
+        <div class="flex gap-2 w-full">
+          <UButton
+            :label="t('common.cancel')"
+            color="neutral"
+            variant="outline"
+            block
+            :disabled="loading"
+            @click="cancelTfa"
+          />
+          <UButton
+            :label="t('session.submit')"
+            block
+            :loading="loading"
+            :disabled="otpCode.length !== 6 || otpCode.some(c => c === undefined || c === null)"
+            @click="onOtpComplete"
+          />
+        </div>
+      </div>
+
+      <!-- Normal Login Form -->
       <UAuthForm
+        v-else
         :schema="schema"
         :fields="fields"
         :loading="loading"

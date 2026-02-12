@@ -8,6 +8,7 @@ import { useAdminStore } from '../stores/admin'
 import { useUserStore } from '../stores/user'
 import { useAuthStore } from '../stores/auth'
 import api from '../utils/api'
+import QRCode from 'qrcode'
 
 const router = useRouter()
 const toast = useToast()
@@ -47,6 +48,130 @@ async function fetchSettings() {
     })
   } finally {
     loading.value = false
+  }
+}
+
+// 2FA setup state
+const tfaSetupModalOpen = ref(false)
+const tfaSetupLoading = ref(false)
+const tfaSetupToken = ref('')
+const tfaQrDataUrl = ref('')
+const tfaSecret = ref('')
+const tfaCode = ref<number[]>([])
+const tfaEnabling = ref(false)
+
+// 2FA disable state
+const tfaDisableModalOpen = ref(false)
+const tfaDisabling = ref(false)
+
+const tfaCodeComplete = computed(() => tfaCode.value.length === 6 && tfaCode.value.every(c => c !== undefined && c !== null))
+
+function extractSecretFromUri(uri: string): string {
+  try {
+    return new URL(uri).searchParams.get('secret') || ''
+  } catch {
+    return ''
+  }
+}
+
+function onTwoFactorToggle() {
+  if (!settings.value) return
+  if (settings.value.two_factor) {
+    tfaDisableModalOpen.value = true
+  } else {
+    openTfaSetup()
+  }
+}
+
+async function openTfaSetup() {
+  tfaSetupModalOpen.value = true
+  tfaSetupLoading.value = true
+  tfaSetupToken.value = ''
+  tfaQrDataUrl.value = ''
+  tfaSecret.value = ''
+  tfaCode.value = []
+  try {
+    const { data } = await api.get<{ setup_token: string; uri: string }>('/api/v1/user/settings/2fa')
+    tfaSetupToken.value = data.setup_token
+    tfaSecret.value = extractSecretFromUri(data.uri)
+    tfaQrDataUrl.value = await QRCode.toDataURL(data.uri, { width: 200, margin: 2 })
+  } catch (e: unknown) {
+    const err = e as AxiosError<{ detail?: string }>
+    toast.add({
+      title: t('settings.twoFactorSetupFailed'),
+      description: err?.response?.data?.detail || t('settings.twoFactorSetupFailed'),
+      icon: 'i-lucide-circle-x',
+      color: 'error'
+    })
+    tfaSetupModalOpen.value = false
+  } finally {
+    tfaSetupLoading.value = false
+  }
+}
+
+async function copySecret() {
+  try {
+    await navigator.clipboard.writeText(tfaSecret.value)
+    toast.add({
+      title: t('settings.twoFactorSecretCopied'),
+      icon: 'i-lucide-check',
+      color: 'success'
+    })
+  } catch {
+    // clipboard API not available
+  }
+}
+
+async function confirmEnableTfa() {
+  const code = tfaCode.value.join('')
+  if (code.length !== 6) return
+  tfaEnabling.value = true
+  try {
+    await api.post('/api/v1/user/settings/2fa', {
+      setup_token: tfaSetupToken.value,
+      code
+    })
+    if (settings.value) settings.value.two_factor = true
+    tfaSetupModalOpen.value = false
+    toast.add({
+      title: t('settings.twoFactorEnableSuccess'),
+      icon: 'i-lucide-check',
+      color: 'success'
+    })
+  } catch (e: unknown) {
+    const err = e as AxiosError<{ detail?: string }>
+    toast.add({
+      title: t('settings.twoFactorEnableFailed'),
+      description: err?.response?.data?.detail || t('settings.twoFactorEnableFailed'),
+      icon: 'i-lucide-circle-x',
+      color: 'error'
+    })
+  } finally {
+    tfaEnabling.value = false
+  }
+}
+
+async function confirmDisableTfa() {
+  tfaDisabling.value = true
+  try {
+    await api.delete('/api/v1/user/settings/2fa')
+    if (settings.value) settings.value.two_factor = false
+    tfaDisableModalOpen.value = false
+    toast.add({
+      title: t('settings.twoFactorDisableSuccess'),
+      icon: 'i-lucide-check',
+      color: 'success'
+    })
+  } catch (e: unknown) {
+    const err = e as AxiosError<{ detail?: string }>
+    toast.add({
+      title: t('settings.twoFactorDisableFailed'),
+      description: err?.response?.data?.detail || t('settings.twoFactorDisableFailed'),
+      icon: 'i-lucide-circle-x',
+      color: 'error'
+    })
+  } finally {
+    tfaDisabling.value = false
   }
 }
 
@@ -267,7 +392,7 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
                   <div class="flex items-center gap-2">
                     <USwitch
                       :model-value="settings.two_factor"
-                      disabled
+                      @update:model-value="onTwoFactorToggle"
                     />
                     <span class="text-sm text-muted">
                       {{ settings.two_factor ? t('settings.twoFactorEnabled') : t('settings.twoFactorDisabled') }}
@@ -280,5 +405,114 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
         </div>
       </template>
     </UDashboardPanel>
+
+    <!-- Enable 2FA Modal -->
+    <UModal
+      v-model:open="tfaSetupModalOpen"
+      :title="t('settings.twoFactorSetupTitle')"
+      :dismissible="!tfaEnabling"
+      :ui="{ footer: 'justify-end' }"
+    >
+      <template #body>
+        <div
+          v-if="tfaSetupLoading"
+          class="flex items-center justify-center py-12"
+        >
+          <UIcon
+            name="i-lucide-loader-circle"
+            class="size-8 animate-spin text-muted"
+          />
+        </div>
+        <div
+          v-else
+          class="flex flex-col gap-4"
+        >
+          <p class="text-sm text-muted">
+            {{ t('settings.twoFactorSetupDesc') }}
+          </p>
+
+          <div class="flex justify-center">
+            <img
+              :src="tfaQrDataUrl"
+              alt="QR Code"
+              class="rounded-lg"
+            >
+          </div>
+
+          <UFormField :label="t('settings.twoFactorSecret')">
+            <div class="flex gap-2">
+              <UInput
+                :model-value="tfaSecret"
+                readonly
+                class="flex-1 font-mono"
+              />
+              <UButton
+                icon="i-lucide-copy"
+                color="neutral"
+                variant="outline"
+                @click="copySecret"
+              />
+            </div>
+          </UFormField>
+
+          <UFormField :label="t('settings.twoFactorCode')">
+            <UPinInput
+              v-model="tfaCode"
+              :length="6"
+              type="number"
+              otp
+              autofocus
+              @complete="confirmEnableTfa"
+            />
+          </UFormField>
+        </div>
+      </template>
+
+      <template #footer>
+        <UButton
+          :label="t('common.cancel')"
+          color="neutral"
+          variant="outline"
+          :disabled="tfaEnabling"
+          @click="tfaSetupModalOpen = false"
+        />
+        <UButton
+          :label="t('settings.twoFactorEnable')"
+          :disabled="!tfaCodeComplete || tfaSetupLoading"
+          :loading="tfaEnabling"
+          @click="confirmEnableTfa"
+        />
+      </template>
+    </UModal>
+
+    <!-- Disable 2FA Confirm Modal -->
+    <UModal
+      v-model:open="tfaDisableModalOpen"
+      :title="t('settings.twoFactorDisableTitle')"
+      :dismissible="!tfaDisabling"
+      :ui="{ footer: 'justify-end' }"
+    >
+      <template #body>
+        <p class="text-sm text-muted">
+          {{ t('settings.twoFactorDisableConfirm') }}
+        </p>
+      </template>
+
+      <template #footer>
+        <UButton
+          :label="t('common.cancel')"
+          color="neutral"
+          variant="outline"
+          :disabled="tfaDisabling"
+          @click="tfaDisableModalOpen = false"
+        />
+        <UButton
+          :label="t('common.confirm')"
+          color="error"
+          :loading="tfaDisabling"
+          @click="confirmDisableTfa"
+        />
+      </template>
+    </UModal>
   </UDashboardGroup>
 </template>

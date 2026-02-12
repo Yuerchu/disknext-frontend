@@ -6,6 +6,7 @@ const router = createRouter({
     { path: '/home', component: () => import('./pages/index.vue') },
     { path: '/settings', component: () => import('./pages/settings.vue') },
     { path: '/shares', component: () => import('./pages/shares.vue') },
+    { path: '/trash', component: () => import('./pages/trash.vue') },
     { path: '/session', component: () => import('./pages/session.vue'), meta: { guest: true } },
     { path: '/s/:code', component: () => import('./pages/share-view.vue'), meta: { guest: true } },
     {

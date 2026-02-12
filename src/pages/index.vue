@@ -519,19 +519,17 @@ function showApiError(e: AxiosError<ApiErrorResponse>, fallback: string) {
 const deleteModalOpen = ref(false)
 const deleteTargetIds = ref<string[]>([])
 const deleteTargetName = ref('')
-const deletePermanent = ref(false)
 
 function deleteObjects(ids: string[], name?: string) {
   deleteTargetIds.value = ids
   deleteTargetName.value = name || `${ids.length} 个项目`
-  deletePermanent.value = false
   deleteModalOpen.value = true
 }
 
 async function confirmDelete() {
   try {
     await api.delete('/api/v1/object/', {
-      data: { ids: deleteTargetIds.value, permanent: deletePermanent.value }
+      data: { ids: deleteTargetIds.value, permanent: false }
     })
     deleteModalOpen.value = false
     clearSelection()
@@ -1349,12 +1347,6 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
         <p class="text-sm text-muted">
           {{ t('deleteModal.hint') }}
         </p>
-        <UCheckbox
-          v-model="deletePermanent"
-          color="error"
-          :label="t('deleteModal.permanent')"
-          :description="t('deleteModal.permanentHint')"
-        />
       </div>
     </template>
 
@@ -1366,8 +1358,8 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
         @click="deleteModalOpen = false"
       />
       <UButton
-        :label="deletePermanent ? t('deleteModal.permanentDelete') : t('deleteModal.moveToTrash')"
-        :color="deletePermanent ? 'error' : 'primary'"
+        :label="t('deleteModal.moveToTrash')"
+        color="primary"
         @click="confirmDelete"
       />
     </template>

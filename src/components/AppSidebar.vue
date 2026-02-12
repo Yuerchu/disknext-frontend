@@ -65,7 +65,8 @@ const items = computed<NavigationMenuItem[][]>(() => [
     },
     {
       label: t('nav.trash'),
-      icon: 'i-lucide-trash-2'
+      icon: 'i-lucide-trash-2',
+      to: '/trash'
     }
   ],
   [
