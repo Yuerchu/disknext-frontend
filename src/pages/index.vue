@@ -1150,7 +1150,7 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
   const header: DropdownMenuItem[] = [
     {
       label: `${user.nickname}${admin.isAdmin ? ' ' + t('user.admin') : ''}`,
-      description: user.email,
+      description: user.email ?? '',
       type: 'label'
     }
   ]

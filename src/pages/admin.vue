@@ -16,7 +16,7 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => [
   [
     {
       label: `${user.nickname} ${t('user.admin')}`,
-      description: user.email,
+      description: user.email ?? '',
       type: 'label'
     }
   ],

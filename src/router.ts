@@ -20,6 +20,7 @@ const router = createRouter({
         { path: 'settings/captcha', component: () => import('./pages/admin/settings/captcha.vue') },
         { path: 'settings/mail', component: () => import('./pages/admin/settings/mail.vue') },
         { path: 'settings/appearance', component: () => import('./pages/admin/settings/appearance.vue') },
+        { path: 'settings/session', component: () => import('./pages/admin/settings/session.vue') },
         { path: 'settings/:section', component: () => import('./pages/admin/placeholder.vue') },
         { path: 'fs/:section', component: () => import('./pages/admin/placeholder.vue') },
         { path: 'policies', component: () => import('./pages/admin/placeholder.vue') },

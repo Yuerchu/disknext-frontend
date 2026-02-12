@@ -3,15 +3,17 @@ import api from '../utils/api'
 
 interface UserState {
   nickname: string
-  email: string
+  email: string | null
+  phone: string | null
   fetched: boolean
 }
 
 export const useUserStore = defineStore('user', {
   state: (): UserState => ({
     nickname: '',
-    email: '',
-    fetched: false
+    email: null,
+    fetched: false,
+    phone: null
   }),
 
   actions: {
@@ -19,7 +21,8 @@ export const useUserStore = defineStore('user', {
       try {
         const { data } = await api.get('/api/v1/user/me')
         this.nickname = data.nickname
-        this.email = data.email
+        this.email = data.email ?? null
+        this.phone = data.phone ?? null
       } catch {
         // ignore
       }
@@ -28,7 +31,8 @@ export const useUserStore = defineStore('user', {
 
     clear() {
       this.nickname = ''
-      this.email = ''
+      this.email = null
+      this.phone = null
       this.fetched = false
     }
   }

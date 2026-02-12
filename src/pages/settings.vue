@@ -24,7 +24,7 @@ const { t, locale } = useI18n()
 
 interface UserSettings {
   id: string
-  email: string
+  email: string | null
   nickname: string
   created_at: string
   group_name: string
@@ -296,7 +296,7 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
   const header: DropdownMenuItem[] = [
     {
       label: `${user.nickname}${admin.isAdmin ? ' ' + t('user.admin') : ''}`,
-      description: user.email,
+      description: user.email ?? '',
       type: 'label'
     }
   ]
@@ -395,7 +395,7 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
               <div class="flex flex-col gap-4 pt-4">
                 <UFormField :label="t('settings.email')">
                   <UInput
-                    :model-value="settings.email"
+                    :model-value="settings.email ?? ''"
                     disabled
                     class="w-full"
                   />
