@@ -40,6 +40,10 @@ export default {
     releaseToUpload: '释放以上传文件',
     viewList: '列表',
     viewGrid: '网格',
+    dragDrop: {
+      moveSuccess: '已移动到 {name}',
+      moveFailed: '移动失败',
+    },
   },
   contextMenu: {
     uploadFile: '上传文件',

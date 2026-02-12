@@ -40,6 +40,10 @@ export default {
     releaseToUpload: 'Release to upload files',
     viewList: 'List',
     viewGrid: 'Grid',
+    dragDrop: {
+      moveSuccess: 'Moved to {name}',
+      moveFailed: 'Move failed',
+    },
   },
   contextMenu: {
     uploadFile: 'Upload File',

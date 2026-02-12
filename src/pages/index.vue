@@ -14,6 +14,7 @@ import { useUploadStore } from '../stores/upload'
 import type { UploadTask, UploadSession } from '../stores/upload'
 import ObjectPicker from '../components/ObjectPicker.vue'
 import { useAreaSelection } from '../composables/useAreaSelection'
+import { useFileDragDrop } from '../composables/useFileDragDrop'
 import api from '../utils/api'
 
 const UIcon = resolveComponent('UIcon')
@@ -152,32 +153,6 @@ function navigateToFolder(name: string) {
 
 const pathSegments = computed(() => currentPath.value ? currentPath.value.split('/') : [])
 
-const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
-  const segments = pathSegments.value
-  const root: BreadcrumbItem = { label: t('nav.myFiles'), icon: 'i-lucide-folder' }
-
-  if (segments.length === 0) return [root]
-
-  const all = [root, ...segments.map(s => ({ label: s }) as BreadcrumbItem)]
-
-  // 4 items or fewer: show all (root + up to 3 segments)
-  if (all.length <= 4) return all
-
-  // Collapse middle items into a dropdown
-  const middle = all.slice(1, -1)
-  const collapsed: BreadcrumbItem = {
-    slot: 'collapsed' as const,
-    icon: 'i-lucide-ellipsis',
-    children: middle.map((item, i) => ({
-      label: item.label!,
-      onSelect() {
-        navigateToBreadcrumb(i + 1)
-      }
-    }))
-  }
-  return [root, collapsed, all[all.length - 1]]
-})
-
 function navigateToBreadcrumb(index: number) {
   if (index === 0) {
     fetchDirectory('')
@@ -254,6 +229,18 @@ function onAreaSelectionChange(indices: number[], ctrlKey: boolean, metaKey: boo
   }
 }
 
+const fileDragDrop = useFileDragDrop({
+  enabled: areaSelectionEnabled,
+  containerRef: fileListContainerRef,
+  getSelectedItems: () => selectedObjects.value,
+  isItemSelected: (id) => !!rowSelection.value[id],
+  getItemAtIndex: (index) => sortedObjects.value[index],
+  get tbodySelector() { return viewMode.value === 'grid' ? '.file-grid-container' : '.file-list-tbody' },
+  get itemSelector() { return viewMode.value === 'grid' ? '.file-grid-item' : 'tr' },
+  onDrop: onFileDragDrop,
+  onBreadcrumbDrop: onBreadcrumbDrop
+})
+
 const areaSelection = useAreaSelection(
   fileListContainerRef,
   computed(() => sortedObjects.value.length),
@@ -261,14 +248,52 @@ const areaSelection = useAreaSelection(
     enabled: areaSelectionEnabled,
     get tbodySelector() { return viewMode.value === 'grid' ? '.file-grid-container' : '.file-list-tbody' },
     get itemSelector() { return viewMode.value === 'grid' ? '.file-grid-item' : 'tr' },
+    canDrag: (target) => fileDragDrop.shouldSkipAreaSelection(target),
     onSelectionChange: onAreaSelectionChange
   }
 )
 
-// Table meta for selected row styling
+// Breadcrumb items (after fileDragDrop so we can reference isDragging)
+const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
+  const segments = pathSegments.value
+  const root: BreadcrumbItem = { label: t('nav.myFiles'), icon: 'i-lucide-folder' }
+
+  if (segments.length === 0) return [root]
+
+  const all = [root, ...segments.map(s => ({ label: s }) as BreadcrumbItem)]
+
+  // During drag: show all items expanded so user can drop to any parent
+  if (fileDragDrop.isDragging.value) return all
+
+  // 4 items or fewer: show all (root + up to 3 segments)
+  if (all.length <= 4) return all
+
+  // Collapse middle items into a dropdown
+  const middle = all.slice(1, -1)
+  const collapsed: BreadcrumbItem = {
+    slot: 'collapsed' as const,
+    icon: 'i-lucide-ellipsis',
+    children: middle.map((item, i) => ({
+      label: item.label!,
+      onSelect() {
+        navigateToBreadcrumb(i + 1)
+      }
+    }))
+  }
+  return [root, collapsed, all[all.length - 1]]
+})
+
+function breadcrumbDropPath(index: number): string {
+  if (index === 0) return ''
+  return pathSegments.value.slice(0, index).join('/')
+}
+
+// Table meta for selected row styling + drop target highlight
 const tableMeta = computed(() => ({
   class: {
-    tr: (row: { getIsSelected: () => boolean }) => {
+    tr: (row: { original: FileObject, getIsSelected: () => boolean }) => {
+      if (fileDragDrop.dropTargetId.value === row.original.id)
+        return 'bg-primary/20 outline outline-2 outline-primary -outline-offset-2'
       if (row.getIsSelected()) return 'bg-primary/10'
       return ''
     }
@@ -743,6 +768,7 @@ const dragging = ref(false)
 let dragCounter = 0
 
 function onDragEnter() {
+  if (fileDragDrop.isDragging.value) return
   dragCounter++
   dragging.value = true
 }
@@ -1172,6 +1198,50 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
   return [header, actions, logout]
 })
 
+// Unified mousedown dispatcher
+function onContainerMouseDown(e: MouseEvent) {
+  areaSelection.onMouseDown(e)
+  fileDragDrop.onMouseDown(e)
+}
+
+// File drag-drop move callback
+async function onFileDragDrop(srcIds: string[], dstId: string, dstName: string) {
+  try {
+    await api.patch('/api/v1/object/', { src_ids: srcIds, dst_id: dstId })
+    clearSelection()
+    fetchDirectory(currentPath.value)
+    storageStore.refresh()
+    toast.add({
+      title: t('file.dragDrop.moveSuccess', { name: dstName }),
+      icon: 'i-lucide-check-circle',
+      color: 'success'
+    })
+  } catch (e: unknown) {
+    showApiError(e as AxiosError<ApiErrorResponse>, t('file.dragDrop.moveFailed'))
+  }
+}
+
+// Breadcrumb drag-drop move callback
+async function onBreadcrumbDrop(srcIds: string[], path: string) {
+  try {
+    // Fetch the target directory to get its ID
+    const url = path ? `/api/v1/directory/${path}` : '/api/v1/directory/'
+    const { data } = await api.get<DirectoryResponse>(url)
+    await api.patch('/api/v1/object/', { src_ids: srcIds, dst_id: data.id })
+    clearSelection()
+    fetchDirectory(currentPath.value)
+    storageStore.refresh()
+    const name = path ? path.split('/').pop()! : t('nav.myFiles')
+    toast.add({
+      title: t('file.dragDrop.moveSuccess', { name }),
+      icon: 'i-lucide-check-circle',
+      color: 'success'
+    })
+  } catch (e: unknown) {
+    showApiError(e as AxiosError<ApiErrorResponse>, t('file.dragDrop.moveFailed'))
+  }
+}
+
 // View mode
 type ViewMode = 'list' | 'grid'
 const viewMode = ref<ViewMode>(
@@ -1200,7 +1270,9 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
               <template #item="{ item, index }">
                 <button
                   v-if="index < breadcrumbItems.length - 1"
-                  class="group relative flex items-center gap-1.5 text-sm text-muted font-medium hover:text-default transition-colors cursor-pointer"
+                  class="group relative flex items-center gap-1.5 text-sm text-muted font-medium hover:text-default transition-colors cursor-pointer rounded px-1 -mx-1"
+                  :class="fileDragDrop.isDragging.value && fileDragDrop.dropBreadcrumbPath.value === breadcrumbDropPath(index) ? 'bg-primary/20 text-primary ring-2 ring-primary' : ''"
+                  :data-drop-path="breadcrumbDropPath(index)"
                   @click="navigateToBreadcrumb(index)"
                 >
                   <UIcon
@@ -1236,7 +1308,7 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
           </template>
 
           <template #right>
-            <UButtonGroup size="xs">
+            <UFieldGroup size="xs">
               <UButton
                 icon="i-lucide-list"
                 :color="viewMode === 'list' ? 'primary' : 'neutral'"
@@ -1251,7 +1323,7 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
                 :aria-label="t('file.viewGrid')"
                 @click="viewMode = 'grid'"
               />
-            </UButtonGroup>
+            </UFieldGroup>
             <UColorModeButton />
             <UChip
               :color="uploadChipColor"
@@ -1283,7 +1355,7 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
           <div
             ref="fileListContainerRef"
             class="flex flex-col flex-1 relative"
-            @mousedown="areaSelection.onMouseDown"
+            @mousedown="onContainerMouseDown"
             @contextmenu.capture="resetContextMenu"
             @dragenter.prevent="onDragEnter"
             @dragover.prevent
@@ -1462,7 +1534,13 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
                 v-for="(obj, index) in sortedObjects"
                 :key="obj.id"
                 class="file-grid-item group relative flex flex-col items-center gap-1 p-3 rounded-lg cursor-default select-none transition-colors"
-                :class="rowSelection[obj.id] ? 'bg-primary/10 ring-1 ring-primary/30' : 'hover:bg-elevated'"
+                :class="[
+                  fileDragDrop.dropTargetId.value === obj.id
+                    ? 'bg-primary/20 ring-2 ring-primary'
+                    : rowSelection[obj.id]
+                      ? 'bg-primary/10 ring-1 ring-primary/30'
+                      : 'hover:bg-elevated'
+                ]"
                 @click="onGridItemClick($event, obj, index)"
                 @dblclick="onGridItemDblClick(obj)"
                 @contextmenu="onGridItemContextMenu($event, obj, index)"
@@ -1503,10 +1581,32 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
     </UDashboardPanel>
   </UDashboardGroup>
 
+  <Teleport to="body">
+    <div
+      v-if="fileDragDrop.isDragging.value"
+      class="fixed pointer-events-none z-[9999] bg-elevated border border-default rounded-lg shadow-lg px-3 py-2 flex items-center gap-2 text-sm whitespace-nowrap"
+      :style="{ left: fileDragDrop.previewPos.value.x + 'px', top: fileDragDrop.previewPos.value.y + 'px' }"
+    >
+      <UIcon
+        :name="fileDragDrop.dragItems.value[0]?.type === 'folder' ? 'i-lucide-folder' : 'i-lucide-file'"
+        :class="fileDragDrop.dragItems.value[0]?.type === 'folder' ? 'text-primary' : 'text-muted'"
+        class="size-4 shrink-0"
+      />
+      <span class="truncate max-w-48">{{ fileDragDrop.dragItems.value[0]?.name }}</span>
+      <span
+        v-if="fileDragDrop.dragItems.value.length > 1"
+        class="bg-primary text-white text-xs rounded-full min-w-5 h-5 flex items-center justify-center px-1 font-medium"
+      >
+        +{{ fileDragDrop.dragItems.value.length - 1 }}
+      </span>
+    </div>
+  </Teleport>
+
   <UModal
     v-model:open="deleteModalOpen"
     :title="t('deleteModal.title')"
-    :ui="{ footer: 'justify-end' }"
+    :description="t('deleteModal.hint')"
+    :ui="{ footer: 'justify-end', description: 'sr-only' }"
   >
     <template #body>
       <div class="space-y-4">
@@ -1537,7 +1637,8 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
   <UModal
     v-model:open="createModalOpen"
     :title="createType === 'folder' ? t('createModal.folderTitle') : t('createModal.fileTitle')"
-    :ui="{ footer: 'justify-end' }"
+    :description="createType === 'folder' ? t('createModal.folderPlaceholder') : t('createModal.filePlaceholder')"
+    :ui="{ footer: 'justify-end', description: 'sr-only' }"
   >
     <template #body>
       <UInput
@@ -1567,7 +1668,8 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
   <UModal
     v-model:open="renameModalOpen"
     :title="t('renameModal.title')"
-    :ui="{ footer: 'justify-end' }"
+    :description="t('renameModal.placeholder')"
+    :ui="{ footer: 'justify-end', description: 'sr-only' }"
   >
     <template #body>
       <UInput
@@ -1597,7 +1699,8 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
   <UModal
     v-model:open="shareModalOpen"
     :title="t('shareModal.title')"
-    :ui="{ footer: 'justify-end' }"
+    :description="t('shareModal.sharing')"
+    :ui="{ footer: 'justify-end', description: 'sr-only' }"
   >
     <template #body>
       <!-- Result state -->

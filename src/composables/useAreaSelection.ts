@@ -76,6 +76,7 @@ export function useAreaSelection(
     enabled: Ref<boolean>
     tbodySelector: string
     itemSelector?: string
+    canDrag?: (target: HTMLElement) => boolean
     onSelectionChange: (indices: number[], ctrlKey: boolean, metaKey: boolean) => void
   }
 ) {
@@ -296,6 +297,8 @@ export function useAreaSelection(
 
     const container = containerRef.value
     if (!container || !container.contains(target)) return
+
+    if (options.canDrag?.(target)) return
 
     mouseDown = true
     mouseDownClientX = e.clientX
