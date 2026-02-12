@@ -11,6 +11,7 @@ import { useAdminStore } from '../stores/admin'
 import { useUserStore } from '../stores/user'
 import { useAuthStore } from '../stores/auth'
 import { useStorageStore } from '../stores/storage'
+import { useAreaSelection } from '../composables/useAreaSelection'
 import api from '../utils/api'
 
 const UIcon = resolveComponent('UIcon')
@@ -52,6 +53,41 @@ function clearSelection() {
   rowSelection.value = {}
   lastClickedIndex.value = null
 }
+
+// Area selection (drag to select)
+const trashListContainerRef = ref<HTMLElement | null>(null)
+const areaSelectionEnabled = computed(() => !loading.value && items.value.length > 0)
+
+function onAreaSelectionChange(indices: number[], ctrlKey: boolean, metaKey: boolean) {
+  const isMac = navigator.userAgent.includes('Mac')
+  const isAdditive = (ctrlKey && !isMac) || (metaKey && isMac)
+
+  if (isAdditive) {
+    const newSel = { ...rowSelection.value }
+    indices.forEach(i => {
+      const item = items.value[i]
+      if (item) newSel[item.id] = true
+    })
+    rowSelection.value = newSel
+  } else {
+    const newSel: RowSelectionState = {}
+    indices.forEach(i => {
+      const item = items.value[i]
+      if (item) newSel[item.id] = true
+    })
+    rowSelection.value = newSel
+  }
+}
+
+const areaSelection = useAreaSelection(
+  trashListContainerRef,
+  computed(() => items.value.length),
+  {
+    enabled: areaSelectionEnabled,
+    tbodySelector: '.trash-list-tbody',
+    onSelectionChange: onAreaSelectionChange
+  }
+)
 
 async function fetchTrash() {
   clearSelection()
@@ -390,7 +426,11 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
       </template>
 
       <template #body>
-        <div class="flex flex-col h-full relative">
+        <div
+          ref="trashListContainerRef"
+          class="flex flex-col h-full relative"
+          @mousedown="areaSelection.onMouseDown"
+        >
           <!-- Batch action toolbar -->
           <div
             v-if="isSelectionMode"
@@ -469,6 +509,7 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
             :columns="columns"
             :get-row-id="(row: TrashItem) => row.id"
             :meta="tableMeta"
+            :ui="{ tbody: 'trash-list-tbody' }"
             class="flex-1"
             @select="onRowSelect"
           />
