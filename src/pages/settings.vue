@@ -7,6 +7,9 @@ import type { AxiosError } from 'axios'
 import { useAdminStore } from '../stores/admin'
 import { useUserStore } from '../stores/user'
 import { useAuthStore } from '../stores/auth'
+import { useTheme } from '../composables/useTheme'
+import { chromaticColors, neutralColors, semanticColorKeys, colorHex } from '../constants/colors'
+import type { ThemeColors, ThemePreset } from '../constants/colors'
 import api from '../utils/api'
 import QRCode from 'qrcode'
 
@@ -15,6 +18,7 @@ const toast = useToast()
 const admin = useAdminStore()
 const user = useUserStore()
 const auth = useAuthStore()
+const theme = useTheme()
 const { t, locale } = useI18n()
 
 interface UserSettings {
@@ -178,6 +182,7 @@ async function confirmDisableTfa() {
 onMounted(() => {
   admin.checkAdmin()
   fetchSettings()
+  theme.fetchPresets()
 })
 
 function formatDate(iso: string): string {
@@ -212,8 +217,25 @@ const tabItems: TabsItem[] = [
     label: t('settings.preferences'),
     icon: 'i-lucide-sliders-horizontal',
     slot: 'preferences' as const
+  },
+  {
+    label: t('theme.title'),
+    icon: 'i-lucide-palette',
+    slot: 'theme' as const
   }
 ]
+
+function isCurrentColor(key: keyof ThemeColors, color: string): boolean {
+  return theme.getCurrentColors()[key] === color
+}
+
+function getColorsForKey(key: keyof ThemeColors): readonly string[] {
+  return key === 'neutral' ? neutralColors : chromaticColors
+}
+
+function onPresetClick(preset: ThemePreset) {
+  theme.selectPreset(preset)
+}
 
 const userMenuItems = computed<DropdownMenuItem[][]>(() => {
   const header: DropdownMenuItem[] = [
@@ -399,6 +421,79 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
                     </span>
                   </div>
                 </UFormField>
+              </div>
+            </template>
+
+            <template #theme>
+              <div class="flex flex-col gap-6 pt-4">
+                <!-- Presets -->
+                <div v-if="theme.presets.value.length > 0">
+                  <h3 class="text-sm font-semibold mb-3">
+                    {{ t('theme.presets') }}
+                  </h3>
+                  <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <button
+                      v-for="preset in theme.presets.value"
+                      :key="preset.id"
+                      class="flex items-center gap-3 p-3 rounded-lg border transition-colors cursor-pointer"
+                      :class="theme.presetId.value === preset.id
+                        ? 'border-[var(--ui-primary)] bg-[var(--ui-primary)]/5'
+                        : 'border-[var(--ui-border)] hover:border-[var(--ui-border-hover)]'"
+                      @click="onPresetClick(preset)"
+                    >
+                      <div class="flex gap-1">
+                        <span
+                          v-for="ck in ['primary', 'success', 'warning', 'error'] as const"
+                          :key="ck"
+                          class="size-4 rounded-full"
+                          :style="{ background: colorHex[preset.colors[ck]] }"
+                        />
+                      </div>
+                      <span class="text-sm font-medium truncate">{{ preset.name }}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Custom colors -->
+                <div>
+                  <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-semibold">
+                      {{ t('theme.customColors') }}
+                    </h3>
+                    <UButton
+                      :label="t('theme.resetDefault')"
+                      variant="ghost"
+                      color="neutral"
+                      size="xs"
+                      icon="i-lucide-rotate-ccw"
+                      @click="theme.resetToDefault()"
+                    />
+                  </div>
+
+                  <div class="space-y-4">
+                    <div
+                      v-for="key in semanticColorKeys"
+                      :key="key"
+                    >
+                      <label class="text-sm text-muted mb-1.5 block">
+                        {{ t(`theme.color.${key}`) }}
+                      </label>
+                      <div class="flex flex-wrap gap-1.5">
+                        <button
+                          v-for="color in getColorsForKey(key)"
+                          :key="color"
+                          class="size-7 rounded-full cursor-pointer ring-offset-2 ring-offset-[var(--ui-bg)] transition-shadow"
+                          :class="isCurrentColor(key, color)
+                            ? 'ring-2 ring-[var(--ui-primary)]'
+                            : 'hover:ring-2 hover:ring-[var(--ui-border-hover)]'"
+                          :style="{ background: colorHex[color] }"
+                          :title="t(`theme.colorName.${color}`)"
+                          @click="theme.setColor(key, color)"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </template>
           </UTabs>
