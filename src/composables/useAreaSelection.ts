@@ -42,6 +42,16 @@ function binarySearchBottom(list: Candidate[][], target: number): number {
   return end
 }
 
+function getScrollParent(el: HTMLElement): HTMLElement {
+  let parent = el.parentElement
+  while (parent) {
+    const { overflowY } = getComputedStyle(parent)
+    if (overflowY === 'auto' || overflowY === 'scroll') return parent
+    parent = parent.parentElement
+  }
+  return document.documentElement
+}
+
 function drawSelectionBox(box: HTMLElement, start: Coordinates, end: Coordinates): void {
   if (end.x > start.x) {
     box.style.left = start.x + 'px'
@@ -65,6 +75,7 @@ export function useAreaSelection(
   options: {
     enabled: Ref<boolean>
     tbodySelector: string
+    itemSelector?: string
     onSelectionChange: (indices: number[], ctrlKey: boolean, metaKey: boolean) => void
   }
 ) {
@@ -83,6 +94,7 @@ export function useAreaSelection(
   let rafId: number | null = null
   let mouseDownClientX = 0
   let mouseDownClientY = 0
+  let scrollParent: HTMLElement | null = null
 
   const drawArea: DrawArea = {
     start: null,
@@ -99,10 +111,10 @@ export function useAreaSelection(
     }
   }
 
-  function getDrawPosition(container: HTMLElement, containerBox: DOMRect, cord: Coordinates): Coordinates {
+  function getDrawPosition(container: HTMLElement, containerBox: DOMRect, clipRect: DOMRect, cord: Coordinates): Coordinates {
     return {
-      x: Math.min(Math.max(cord.x - container.scrollLeft + containerBox.left, containerBox.left), containerBox.right),
-      y: Math.min(Math.max(cord.y - container.scrollTop + containerBox.top, containerBox.top), containerBox.bottom)
+      x: Math.min(Math.max(cord.x - container.scrollLeft + containerBox.left, clipRect.left), clipRect.right),
+      y: Math.min(Math.max(cord.y - container.scrollTop + containerBox.top, clipRect.top), clipRect.bottom)
     }
   }
 
@@ -111,7 +123,8 @@ export function useAreaSelection(
     const containerBox = container.getBoundingClientRect()
     const scrollTop = container.scrollTop
 
-    const elements = container.querySelectorAll(options.tbodySelector + ' > tr')
+    const elements = container.querySelectorAll(options.tbodySelector + ' > ' + (options.itemSelector || 'tr'))
+    let lastY: number | null = null
     for (let i = 0; i < elements.length; i++) {
       const el = elements[i] as HTMLElement
       const rect = el.getBoundingClientRect()
@@ -123,7 +136,13 @@ export function useAreaSelection(
         bottom: scrollTop + rect.bottom - containerBox.y,
         right: rect.right - containerBox.x
       }
-      rows.push([candidate])
+      // Group items with the same Y coordinate into the same visual row
+      if (lastY !== null && Math.abs(y - lastY) < 1) {
+        rows[rows.length - 1].push(candidate)
+      } else {
+        rows.push([candidate])
+        lastY = y
+      }
     }
     selectCandidates = rows
   }
@@ -134,10 +153,11 @@ export function useAreaSelection(
     if (!start || !end || !container) return
 
     const containerBox = container.getBoundingClientRect()
+    const clipRect = scrollParent ? scrollParent.getBoundingClientRect() : containerBox
     drawSelectionBox(
       boxNode,
-      getDrawPosition(container, containerBox, start),
-      getDrawPosition(container, containerBox, end)
+      getDrawPosition(container, containerBox, clipRect, start),
+      getDrawPosition(container, containerBox, clipRect, end)
     )
 
     const startX = Math.min(start.x, end.x)
@@ -188,6 +208,8 @@ export function useAreaSelection(
     const container = containerRef.value
     if (!container) return
 
+    scrollParent = getScrollParent(container)
+
     // Use the original mousedown position as start
     const pos = getPosition(container, mouseDownClientX, mouseDownClientY)
     updateCandidates(container)
@@ -207,6 +229,7 @@ export function useAreaSelection(
     document.body.style.userSelect = ''
     mouseDown = false
     dragging = false
+    scrollParent = null
     if (rafId !== null) {
       cancelAnimationFrame(rafId)
       rafId = null
@@ -249,16 +272,17 @@ export function useAreaSelection(
     drawArea.ctrlKey = e.ctrlKey
     drawArea.metaKey = e.metaKey
 
-    // Auto-scroll near edges
-    const containerBox = container.getBoundingClientRect()
-    const scrollMargin = containerBox.height * 0.1
-    const distanceFromBottom = containerBox.bottom - e.clientY
-    const distanceFromTop = e.clientY - containerBox.top
+    // Auto-scroll near edges of the scrollable parent
+    const scrollEl = scrollParent || container
+    const scrollRect = scrollEl.getBoundingClientRect()
+    const scrollMargin = scrollRect.height * 0.1
+    const distanceFromBottom = scrollRect.bottom - e.clientY
+    const distanceFromTop = e.clientY - scrollRect.top
 
     if (distanceFromBottom < scrollMargin) {
-      container.scrollTop += 10
+      scrollEl.scrollTop += 10
     } else if (distanceFromTop < scrollMargin) {
-      container.scrollTop -= 10
+      scrollEl.scrollTop -= 10
     }
 
     scheduleSelectionUpdate()

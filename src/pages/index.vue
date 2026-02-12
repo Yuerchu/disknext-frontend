@@ -259,7 +259,8 @@ const areaSelection = useAreaSelection(
   computed(() => sortedObjects.value.length),
   {
     enabled: areaSelectionEnabled,
-    tbodySelector: '.file-list-tbody',
+    get tbodySelector() { return viewMode.value === 'grid' ? '.file-grid-container' : '.file-list-tbody' },
+    get itemSelector() { return viewMode.value === 'grid' ? '.file-grid-item' : 'tr' },
     onSelectionChange: onAreaSelectionChange
   }
 )
@@ -986,6 +987,68 @@ watch(
   }
 )
 
+// Grid view handlers
+function getItemContextMenu(obj: FileObject): ContextMenuItem[][] {
+  return obj.type === 'folder' ? getFolderItems(obj) : getFileItems(obj)
+}
+
+function onGridItemClick(e: MouseEvent, obj: FileObject, index: number) {
+  const isMac = navigator.userAgent.includes('Mac')
+  const ctrlPressed = (e.ctrlKey && !isMac) || (e.metaKey && isMac)
+  const shiftPressed = e.shiftKey
+
+  if (ctrlPressed) {
+    const newSel = { ...rowSelection.value }
+    if (newSel[obj.id]) delete newSel[obj.id]
+    else newSel[obj.id] = true
+    rowSelection.value = newSel
+    lastClickedIndex.value = index
+    return
+  }
+
+  if (shiftPressed && lastClickedIndex.value !== null) {
+    const start = Math.min(lastClickedIndex.value, index)
+    const end = Math.max(lastClickedIndex.value, index)
+    const newSel: RowSelectionState = {}
+    for (let i = start; i <= end; i++) {
+      newSel[sortedObjects.value[i].id] = true
+    }
+    rowSelection.value = newSel
+    return
+  }
+
+  if (isSelectionMode.value) {
+    clearSelection()
+  }
+}
+
+function onGridItemDblClick(obj: FileObject) {
+  if (obj.type === 'folder') {
+    navigateToFolder(obj.name)
+  }
+}
+
+function onGridItemContextMenu(e: MouseEvent, obj: FileObject, index: number) {
+  e.preventDefault()
+  if (rowSelection.value[obj.id] && selectedObjects.value.length > 1) {
+    contextItems.value = getBulkItems()
+    return
+  }
+  if (selectedObjects.value.length > 0) {
+    clearSelection()
+  }
+  rowSelection.value = { [obj.id]: true }
+  lastClickedIndex.value = index
+  contextItems.value = getItemContextMenu(obj)
+}
+
+function toggleGridSelection(id: string, value: boolean | 'indeterminate') {
+  const newSel = { ...rowSelection.value }
+  if (value) newSel[id] = true
+  else delete newSel[id]
+  rowSelection.value = newSel
+}
+
 // Row select handler (click on row)
 function onRowSelect(e: Event, row: TableRow<FileObject>) {
   const mouseEvent = e as MouseEvent
@@ -1109,6 +1172,13 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
   return [header, actions, logout]
 })
 
+// View mode
+type ViewMode = 'list' | 'grid'
+const viewMode = ref<ViewMode>(
+  (localStorage.getItem('disknext-view-mode') as ViewMode) || 'list'
+)
+watch(viewMode, (v) => localStorage.setItem('disknext-view-mode', v))
+
 const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
   if (upload.tasks.some(t => t.status === 'failed')) return 'error'
   if (upload.tasks.some(t => t.status === 'uploading')) return 'warning'
@@ -1121,9 +1191,9 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
   <UDashboardGroup>
     <AppSidebar />
 
-    <UDashboardPanel>
+    <UDashboardPanel :ui="{ root: 'overflow-y-auto', body: '!overflow-y-visible !p-0 !gap-0' }">
       <template #header>
-        <UDashboardNavbar>
+        <UDashboardNavbar class="sticky top-0 z-20">
           <template #leading>
             <UDashboardSidebarCollapse />
             <UBreadcrumb :items="breadcrumbItems">
@@ -1166,6 +1236,22 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
           </template>
 
           <template #right>
+            <UButtonGroup size="xs">
+              <UButton
+                icon="i-lucide-list"
+                :color="viewMode === 'list' ? 'primary' : 'neutral'"
+                :variant="viewMode === 'list' ? 'solid' : 'ghost'"
+                :aria-label="t('file.viewList')"
+                @click="viewMode = 'list'"
+              />
+              <UButton
+                icon="i-lucide-layout-grid"
+                :color="viewMode === 'grid' ? 'primary' : 'neutral'"
+                :variant="viewMode === 'grid' ? 'solid' : 'ghost'"
+                :aria-label="t('file.viewGrid')"
+                @click="viewMode = 'grid'"
+              />
+            </UButtonGroup>
             <UColorModeButton />
             <UChip
               :color="uploadChipColor"
@@ -1196,7 +1282,7 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
         <UContextMenu :items="contextItems">
           <div
             ref="fileListContainerRef"
-            class="flex flex-col h-full relative"
+            class="flex flex-col flex-1 relative"
             @mousedown="areaSelection.onMouseDown"
             @contextmenu.capture="resetContextMenu"
             @dragenter.prevent="onDragEnter"
@@ -1219,10 +1305,11 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
               </div>
             </div>
 
-            <!-- Batch action toolbar (overlays table header) -->
+            <!-- Batch action toolbar (overlays table header in list view) -->
             <div
               v-if="isSelectionMode"
-              class="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-2.5 bg-elevated border-b border-accented"
+              class="z-10 flex items-center justify-between px-4 py-2.5 bg-elevated border-b border-accented"
+              :class="viewMode === 'list' ? 'absolute top-0 left-0 right-0' : ''"
             >
               <div class="flex items-center gap-2">
                 <UCheckbox
@@ -1288,10 +1375,23 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
               </div>
             </div>
 
+            <!-- Loading skeleton: Grid -->
             <div
-              v-if="loading"
-              class="flex-1"
+              v-if="loading && viewMode === 'grid'"
+              class="grid gap-1 p-2 content-start"
+              style="grid-template-columns: repeat(auto-fill, minmax(110px, 1fr))"
             >
+              <div
+                v-for="i in 20"
+                :key="i"
+                class="flex flex-col items-center gap-2 p-3"
+              >
+                <USkeleton class="size-12 rounded" />
+                <USkeleton class="h-3 w-16" />
+              </div>
+            </div>
+            <!-- Loading skeleton: List -->
+            <div v-else-if="loading">
               <div
                 v-for="i in 8"
                 :key="i"
@@ -1306,15 +1406,15 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
                 <USkeleton class="h-4 w-28" />
               </div>
             </div>
+            <!-- List view -->
             <UTable
-              v-else
+              v-else-if="viewMode === 'list'"
               v-model:row-selection="rowSelection"
               :data="sortedObjects"
               :columns="columns"
               :get-row-id="(row: FileObject) => row.id"
               :meta="tableMeta"
               :ui="{ tbody: 'file-list-tbody' }"
-              class="flex-1"
               @select="onRowSelect"
               @contextmenu="onRowContextMenu"
             >
@@ -1335,6 +1435,68 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
                 </div>
               </template>
             </UTable>
+            <!-- Grid view -->
+            <div
+              v-else
+              class="file-grid-container grid gap-1 p-2 content-start"
+              style="grid-template-columns: repeat(auto-fill, minmax(110px, 1fr))"
+            >
+              <div
+                v-if="sortedObjects.length === 0"
+                class="col-span-full flex items-center justify-center py-12 text-muted"
+              >
+                <div class="text-center space-y-2">
+                  <UIcon
+                    name="i-lucide-folder-open"
+                    class="size-16 mx-auto"
+                  />
+                  <p class="text-lg">
+                    {{ t('file.emptyFolder') }}
+                  </p>
+                  <p class="text-sm">
+                    {{ t('file.dropToUpload') }}
+                  </p>
+                </div>
+              </div>
+              <div
+                v-for="(obj, index) in sortedObjects"
+                :key="obj.id"
+                class="file-grid-item group relative flex flex-col items-center gap-1 p-3 rounded-lg cursor-default select-none transition-colors"
+                :class="rowSelection[obj.id] ? 'bg-primary/10 ring-1 ring-primary/30' : 'hover:bg-elevated'"
+                @click="onGridItemClick($event, obj, index)"
+                @dblclick="onGridItemDblClick(obj)"
+                @contextmenu="onGridItemContextMenu($event, obj, index)"
+              >
+                <div
+                  class="absolute top-1.5 left-1.5 opacity-0 group-hover:opacity-100"
+                  :class="{ '!opacity-100': rowSelection[obj.id] || isSelectionMode }"
+                >
+                  <UCheckbox
+                    :model-value="!!rowSelection[obj.id]"
+                    @update:model-value="toggleGridSelection(obj.id, $event)"
+                    @click.stop
+                  />
+                </div>
+                <UIcon
+                  :name="obj.type === 'folder' ? 'i-lucide-folder' : 'i-lucide-file'"
+                  :class="obj.type === 'folder' ? 'text-primary' : 'text-muted'"
+                  class="size-12"
+                />
+                <span
+                  class="text-xs text-center w-full truncate px-1"
+                  :class="obj.type === 'folder' ? 'font-medium' : ''"
+                  :title="obj.name"
+                >
+                  {{ obj.name }}
+                </span>
+                <span
+                  v-if="obj.type === 'file'"
+                  class="text-[10px] text-muted"
+                >
+                  {{ formatSize(obj.size) }}
+                </span>
+              </div>
+            </div>
           </div>
         </UContextMenu>
       </template>

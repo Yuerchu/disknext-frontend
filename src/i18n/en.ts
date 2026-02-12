@@ -38,6 +38,8 @@ export default {
     emptyFolder: 'Folder is empty',
     dropToUpload: 'Drop files here to upload',
     releaseToUpload: 'Release to upload files',
+    viewList: 'List',
+    viewGrid: 'Grid',
   },
   contextMenu: {
     uploadFile: 'Upload File',

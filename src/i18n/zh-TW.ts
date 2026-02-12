@@ -38,6 +38,8 @@ export default {
     emptyFolder: '資料夾為空',
     dropToUpload: '拖放檔案到此處上傳',
     releaseToUpload: '釋放以上傳檔案',
+    viewList: '列表',
+    viewGrid: '網格',
   },
   contextMenu: {
     uploadFile: '上傳檔案',

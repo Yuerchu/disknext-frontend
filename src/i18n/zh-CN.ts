@@ -38,6 +38,8 @@ export default {
     emptyFolder: '文件夹为空',
     dropToUpload: '拖放文件到此处上传',
     releaseToUpload: '释放以上传文件',
+    viewList: '列表',
+    viewGrid: '网格',
   },
   contextMenu: {
     uploadFile: '上传文件',
