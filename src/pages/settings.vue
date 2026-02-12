@@ -9,6 +9,7 @@ import { useUserStore } from '../stores/user'
 import { useAuthStore } from '../stores/auth'
 import { useTheme } from '../composables/useTheme'
 import { chromaticColors, neutralColors, semanticColorKeys, colorHex } from '../constants/colors'
+import { timezoneOptions } from '../constants/timezones'
 import type { ThemeColors, ThemePreset } from '../constants/colors'
 import api from '../utils/api'
 import QRCode from 'qrcode'
@@ -35,12 +36,32 @@ interface UserSettings {
 
 const settings = ref<UserSettings | null>(null)
 const loading = ref(true)
+const originalNickname = ref('')
+const savingNickname = ref(false)
+
+const nicknameChanged = computed(() =>
+  settings.value ? settings.value.nickname !== originalNickname.value : false
+)
+
+const languageItems = [
+  { label: '简体中文', value: 'zh-CN' },
+  { label: 'English', value: 'en' },
+  { label: '繁體中文', value: 'zh-TW' },
+]
+
+const timezoneItems = computed(() =>
+  timezoneOptions.map(tz => ({
+    label: t(tz.labelKey),
+    value: tz.value,
+  }))
+)
 
 async function fetchSettings() {
   loading.value = true
   try {
     const { data } = await api.get<UserSettings>('/api/v1/user/settings/')
     settings.value = data
+    originalNickname.value = data.nickname
   } catch (e: unknown) {
     const err = e as AxiosError<{ detail?: string }>
     const message = err?.response?.data?.detail || t('settings.loadFailed')
@@ -52,6 +73,52 @@ async function fetchSettings() {
     })
   } finally {
     loading.value = false
+  }
+}
+
+async function saveNickname() {
+  if (!settings.value || !nicknameChanged.value) return
+  savingNickname.value = true
+  try {
+    await api.patch('/api/v1/user/settings/nickname', { nickname: settings.value.nickname })
+    originalNickname.value = settings.value.nickname
+    user.nickname = settings.value.nickname
+    toast.add({ title: t('settings.saveSuccess'), icon: 'i-lucide-check-circle', color: 'success' })
+  } catch (e: unknown) {
+    const err = e as AxiosError<{ detail?: string }>
+    settings.value.nickname = originalNickname.value
+    toast.add({ title: t('settings.saveFailed'), description: err?.response?.data?.detail || '', icon: 'i-lucide-circle-x', color: 'error' })
+  } finally {
+    savingNickname.value = false
+  }
+}
+
+async function onLanguageChange(lang: string) {
+  if (!settings.value) return
+  const prev = settings.value.language
+  settings.value.language = lang
+  try {
+    await api.patch('/api/v1/user/settings/language', { language: lang })
+    setLocale(lang)
+    toast.add({ title: t('settings.saveSuccess'), icon: 'i-lucide-check-circle', color: 'success' })
+  } catch (e: unknown) {
+    const err = e as AxiosError<{ detail?: string }>
+    settings.value.language = prev
+    toast.add({ title: t('settings.saveFailed'), description: err?.response?.data?.detail || '', icon: 'i-lucide-circle-x', color: 'error' })
+  }
+}
+
+async function onTimezoneChange(tz: number) {
+  if (!settings.value) return
+  const prev = settings.value.timezone
+  settings.value.timezone = tz
+  try {
+    await api.patch('/api/v1/user/settings/timezone', { timezone: tz })
+    toast.add({ title: t('settings.saveSuccess'), icon: 'i-lucide-check-circle', color: 'success' })
+  } catch (e: unknown) {
+    const err = e as AxiosError<{ detail?: string }>
+    settings.value.timezone = prev
+    toast.add({ title: t('settings.saveFailed'), description: err?.response?.data?.detail || '', icon: 'i-lucide-circle-x', color: 'error' })
   }
 }
 
@@ -195,18 +262,6 @@ function formatDate(iso: string): string {
   })
 }
 
-function formatTimezone(offset: number): string {
-  const sign = offset >= 0 ? '+' : '-'
-  const abs = Math.abs(offset)
-  return `UTC${sign}${abs}`
-}
-
-const languageMap: Record<string, string> = {
-  'zh-CN': '简体中文',
-  'en': 'English',
-  'zh-TW': '繁體中文'
-}
-
 const tabItems: TabsItem[] = [
   {
     label: t('settings.profile'),
@@ -347,11 +402,19 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
                 </UFormField>
 
                 <UFormField :label="t('settings.nickname')">
-                  <UInput
-                    :model-value="settings.nickname"
-                    disabled
-                    class="w-full"
-                  />
+                  <div class="flex gap-2 w-full">
+                    <UInput
+                      v-model="settings.nickname"
+                      :placeholder="t('settings.nicknamePlaceholder')"
+                      class="flex-1"
+                    />
+                    <UButton
+                      :label="t('common.save')"
+                      :disabled="!nicknameChanged"
+                      :loading="savingNickname"
+                      @click="saveNickname"
+                    />
+                  </div>
                 </UFormField>
 
                 <USeparator />
@@ -395,18 +458,21 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
             <template #preferences>
               <div class="flex flex-col gap-4 pt-4">
                 <UFormField :label="t('settings.language')">
-                  <UInput
-                    :model-value="languageMap[settings.language] || settings.language"
-                    disabled
+                  <USelect
+                    :model-value="settings.language"
+                    :items="languageItems"
                     class="w-full"
+                    @update:model-value="onLanguageChange"
                   />
                 </UFormField>
 
                 <UFormField :label="t('settings.timezone')">
-                  <UInput
-                    :model-value="formatTimezone(settings.timezone)"
-                    disabled
+                  <USelectMenu
+                    :model-value="settings.timezone"
+                    :items="timezoneItems"
+                    value-key="value"
                     class="w-full"
+                    @update:model-value="onTimezoneChange"
                   />
                 </UFormField>
 
