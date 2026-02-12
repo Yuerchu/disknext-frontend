@@ -9,6 +9,7 @@ type RowSelectionState = Record<string, boolean>
 import { useAdminStore } from '../stores/admin'
 import { useUserStore } from '../stores/user'
 import { useAuthStore } from '../stores/auth'
+import { useStorageStore } from '../stores/storage'
 import { useUploadStore } from '../stores/upload'
 import type { UploadTask, UploadSession } from '../stores/upload'
 import ObjectPicker from '../components/ObjectPicker.vue'
@@ -23,6 +24,7 @@ const toast = useToast()
 const admin = useAdminStore()
 const user = useUserStore()
 const auth = useAuthStore()
+const storageStore = useStorageStore()
 const upload = useUploadStore()
 const { t, locale } = useI18n()
 
@@ -534,6 +536,7 @@ async function confirmDelete() {
     deleteModalOpen.value = false
     clearSelection()
     fetchDirectory(currentPath.value)
+    storageStore.refresh()
   } catch (e: unknown) {
     showApiError(e as AxiosError<ApiErrorResponse>, t('errors.deleteFailed'))
   }
@@ -590,6 +593,7 @@ async function confirmCreate() {
     }
     createModalOpen.value = false
     fetchDirectory(currentPath.value)
+    storageStore.refresh()
   } catch (e: unknown) {
     showApiError(e as AxiosError<ApiErrorResponse>, t('errors.createFailed'))
   }
@@ -673,6 +677,7 @@ async function duplicateObject(obj: FileObject) {
       dst_id: directory.value.id
     })
     fetchDirectory(currentPath.value)
+    storageStore.refresh()
     toast.add({
       title: t('objectPicker.duplicateSuccess'),
       icon: 'i-lucide-check-circle',
@@ -713,6 +718,7 @@ async function confirmCopyMove(selected: { id: string, name: string, path: strin
     pickerOpen.value = false
     clearSelection()
     fetchDirectory(currentPath.value)
+    storageStore.refresh()
     toast.add({
       title: pickerMode.value === 'copy'
         ? t('objectPicker.copySuccess')
@@ -973,6 +979,7 @@ watch(
     for (let i = 0; i < newStatuses.length; i++) {
       if (newStatuses[i] === 'completed' && oldStatuses[i] !== 'completed') {
         fetchDirectory(currentPath.value)
+        storageStore.refresh()
         return
       }
     }

@@ -10,6 +10,7 @@ import type { AxiosError } from 'axios'
 import { useAdminStore } from '../stores/admin'
 import { useUserStore } from '../stores/user'
 import { useAuthStore } from '../stores/auth'
+import { useStorageStore } from '../stores/storage'
 import api from '../utils/api'
 
 const UIcon = resolveComponent('UIcon')
@@ -22,6 +23,7 @@ const toast = useToast()
 const admin = useAdminStore()
 const user = useUserStore()
 const auth = useAuthStore()
+const storageStore = useStorageStore()
 const { t, locale } = useI18n()
 
 type ApiErrorResponse = { detail?: string }
@@ -244,6 +246,7 @@ async function restoreItems(ids: string[]) {
     await api.patch('/api/v1/trash/restore', { ids })
     toast.add({ title: t('trash.restoreSuccess'), icon: 'i-lucide-check-circle', color: 'success' })
     fetchTrash()
+    storageStore.refresh()
   } catch (e: unknown) {
     showApiError(e as AxiosError<ApiErrorResponse>, t('trash.restoreFailed'))
   }
@@ -264,6 +267,7 @@ async function confirmPermanentDelete() {
     toast.add({ title: t('trash.deleteSuccess'), icon: 'i-lucide-check-circle', color: 'success' })
     deleteConfirmOpen.value = false
     fetchTrash()
+    storageStore.refresh()
   } catch (e: unknown) {
     showApiError(e as AxiosError<ApiErrorResponse>, t('trash.deleteFailed'))
   }
@@ -278,6 +282,7 @@ async function confirmEmptyTrash() {
     toast.add({ title: t('trash.emptySuccess'), icon: 'i-lucide-check-circle', color: 'success' })
     emptyTrashOpen.value = false
     fetchTrash()
+    storageStore.refresh()
   } catch (e: unknown) {
     showApiError(e as AxiosError<ApiErrorResponse>, t('trash.emptyFailed'))
   }

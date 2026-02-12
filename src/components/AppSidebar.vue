@@ -2,26 +2,14 @@
 import { useI18n } from 'vue-i18n'
 import type { NavigationMenuItem } from '@nuxt/ui'
 import { useAdminStore } from '../stores/admin'
-import api from '../utils/api'
+import { useStorageStore } from '../stores/storage'
 
 const admin = useAdminStore()
+const storage = useStorageStore()
 const { t } = useI18n()
 
-interface StorageInfo {
-  used: number
-  free: number
-  total: number
-}
-
-const storage = ref<StorageInfo | null>(null)
-
-onMounted(async () => {
-  try {
-    const { data } = await api.get<StorageInfo>('/api/v1/user/storage')
-    storage.value = data
-  } catch {
-    // silently ignore
-  }
+onMounted(() => {
+  storage.refresh()
 })
 
 function formatSize(bytes: number): string {
@@ -30,11 +18,6 @@ function formatSize(bytes: number): string {
   const i = Math.floor(Math.log(bytes) / Math.log(1024))
   return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`
 }
-
-const storagePercent = computed(() => {
-  if (!storage.value || !storage.value.total) return 0
-  return Math.round((storage.value.used / storage.value.total) * 100)
-})
 
 const items = computed<NavigationMenuItem[][]>(() => [
   [
@@ -143,7 +126,7 @@ const adminItems = computed<NavigationMenuItem[]>(() => [
 
     <template #footer="{ collapsed }">
       <div
-        v-if="!collapsed && storage"
+        v-if="!collapsed && storage.info"
         class="w-full px-1 py-1 space-y-1.5"
       >
         <div class="flex items-center justify-between text-xs text-muted">
@@ -156,11 +139,11 @@ const adminItems = computed<NavigationMenuItem[]>(() => [
           </ULink>
         </div>
         <UProgress
-          :model-value="storagePercent"
+          :model-value="storage.percent"
           size="xs"
         />
         <p class="text-xs text-muted">
-          {{ formatSize(storage.used) }} / {{ formatSize(storage.total) }}
+          {{ formatSize(storage.info.used) }} / {{ formatSize(storage.info.total) }}
         </p>
       </div>
       <UIcon
