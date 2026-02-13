@@ -571,7 +571,7 @@ function deleteObjects(ids: string[], name?: string) {
 async function confirmDelete() {
   try {
     await api.delete('/api/v1/object/', {
-      data: { ids: deleteTargetIds.value, permanent: false }
+      data: { ids: deleteTargetIds.value }
     })
     deleteModalOpen.value = false
     clearSelection()

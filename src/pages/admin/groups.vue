@@ -401,7 +401,7 @@ const speedLimitMB = computed({
     :ui="{ footer: 'justify-end', content: 'sm:max-w-2xl', description: 'hidden' }"
   >
     <template #body>
-      <div class="max-h-[75vh] overflow-y-auto space-y-6 pr-1">
+      <div class="space-y-6">
         <!-- Basic Info -->
         <div class="space-y-4">
           <h3 class="text-sm font-semibold text-muted">

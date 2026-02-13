@@ -361,7 +361,8 @@ watch(() => props.open, (val) => {
     :title="title"
     :ui="{
       footer: 'justify-end',
-      content: 'sm:max-w-4xl sm:w-full'
+      content: 'sm:max-w-4xl sm:w-full',
+      body: 'overflow-y-hidden'
     }"
     @update:open="emit('update:open', $event)"
   >

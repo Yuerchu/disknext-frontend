@@ -529,7 +529,7 @@ async function calibrateUser(user: User) {
   >
     <template #body>
       <form @submit.prevent="submitForm">
-        <div class="max-h-[75vh] overflow-y-auto space-y-6 pr-1">
+        <div class="space-y-6">
           <!-- Basic Info -->
           <div class="space-y-4">
             <h3 class="text-sm font-semibold text-muted">
