@@ -8,6 +8,8 @@ interface AuthMethod {
 
 interface SiteConfig {
   title: string
+  logoLight: string
+  logoDark: string
   loginCaptcha: boolean
   regCaptcha: boolean
   captchaType: 'default' | 'gcaptcha' | 'cloudflare turnstile'
@@ -24,6 +26,8 @@ interface SiteConfig {
 export const useSiteConfigStore = defineStore('siteConfig', {
   state: (): SiteConfig & { fetched: boolean } => ({
     title: '',
+    logoLight: '',
+    logoDark: '',
     loginCaptcha: false,
     regCaptcha: false,
     captchaType: 'default',
@@ -50,6 +54,8 @@ export const useSiteConfigStore = defineStore('siteConfig', {
       try {
         const { data } = await axios.get('/api/v1/site/config')
         this.title = data.title ?? ''
+        this.logoLight = data.logo_light ?? ''
+        this.logoDark = data.logo_dark ?? ''
         this.loginCaptcha = data.login_captcha ?? false
         this.regCaptcha = data.reg_captcha ?? false
         this.captchaType = data.captcha_type ?? 'default'

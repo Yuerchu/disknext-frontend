@@ -22,6 +22,8 @@ const form = ref({
   siteName: '',
   siteDes: '',
   siteURL: '',
+  logo_light: '',
+  logo_dark: '',
   footer_code: '',
   site_notice: '',
   tos_url: '',
@@ -37,6 +39,8 @@ const settingTypeMap: Record<string, string> = {
   siteName: 'basic',
   siteDes: 'basic',
   siteURL: 'basic',
+  logo_light: 'basic',
+  logo_dark: 'basic',
   footer_code: 'basic',
   site_notice: 'basic',
   tos_url: 'basic',
@@ -175,6 +179,68 @@ onMounted(() => fetchSettings())
                 class="w-full"
               />
             </UFormField>
+          </div>
+        </UCard>
+
+        <!-- Logo -->
+        <UCard>
+          <template #header>
+            <h2 class="text-base font-semibold">
+              {{ t('adminSite.logo') }}
+            </h2>
+          </template>
+          <div class="space-y-4">
+            <UFormField
+              :label="t('adminSite.logoLight')"
+              :description="t('adminSite.logoLightDesc')"
+            >
+              <UInput
+                v-model="form.logo_light"
+                placeholder="https://example.com/logo-light.svg"
+                class="w-full"
+              />
+            </UFormField>
+            <UFormField
+              :label="t('adminSite.logoDark')"
+              :description="t('adminSite.logoDarkDesc')"
+            >
+              <UInput
+                v-model="form.logo_dark"
+                placeholder="https://example.com/logo-dark.svg"
+                class="w-full"
+              />
+            </UFormField>
+            <div
+              v-if="form.logo_light || form.logo_dark"
+              class="flex items-center gap-6"
+            >
+              <div
+                v-if="form.logo_light"
+                class="flex flex-col items-center gap-1"
+              >
+                <div class="bg-white rounded-lg p-3 border border-default">
+                  <img
+                    :src="form.logo_light"
+                    alt="Light logo preview"
+                    class="h-8 w-auto object-contain"
+                  >
+                </div>
+                <span class="text-xs text-muted">{{ t('adminSite.previewLight') }}</span>
+              </div>
+              <div
+                v-if="form.logo_dark"
+                class="flex flex-col items-center gap-1"
+              >
+                <div class="bg-neutral-900 rounded-lg p-3 border border-default">
+                  <img
+                    :src="form.logo_dark"
+                    alt="Dark logo preview"
+                    class="h-8 w-auto object-contain"
+                  >
+                </div>
+                <span class="text-xs text-muted">{{ t('adminSite.previewDark') }}</span>
+              </div>
+            </div>
           </div>
         </UCard>
 

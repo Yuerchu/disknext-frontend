@@ -174,7 +174,7 @@ const items = computed<NavigationMenuItem[][]>(() => [
         <RouterLink to="/admin">
           <AppLogo
             v-if="!collapsed"
-            class="h-5 w-auto shrink-0"
+            class="h-auto w-full shrink-0 p-3"
           />
           <UIcon
             v-else

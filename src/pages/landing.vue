@@ -125,7 +125,7 @@ const ctaLinks = computed<ButtonProps[]>(() => [
       to="/"
     >
       <template #title>
-        <AppLogo class="h-5 w-auto" />
+        <AppLogo class="h-5" />
       </template>
 
       <template #right>
