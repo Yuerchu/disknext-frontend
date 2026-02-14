@@ -3,6 +3,7 @@ import { h, ref, computed, onMounted, watch, resolveComponent } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { TableColumn, DropdownMenuItem } from '@nuxt/ui'
 import type { AxiosError } from 'axios'
+import { getFileIcon } from '../../composables/useFileOpen'
 import api from '../../utils/api'
 
 type ApiErrorResponse = { detail?: string }
@@ -141,9 +142,9 @@ const columns = computed<TableColumn<AdminFile>[]>(() => [
     id: 'file',
     header: t('adminFile.fileName'),
     cell: ({ row }) => {
-      const icon = row.original.type === 'folder' ? 'i-lucide-folder' : 'i-lucide-file'
+      const isFolder = row.original.type === 'folder'
       return h('div', { class: 'flex items-center gap-2 min-w-0' }, [
-        h(resolveComponent('UIcon'), { name: icon, class: 'size-4 shrink-0' }),
+        h(resolveComponent('UIcon'), { name: getFileIcon(row.original.name, isFolder), class: 'size-4 shrink-0' }),
         h('span', { class: 'truncate', title: row.original.name }, row.original.name)
       ])
     }

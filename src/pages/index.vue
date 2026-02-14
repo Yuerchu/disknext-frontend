@@ -13,8 +13,11 @@ import { useStorageStore } from '../stores/storage'
 import { useUploadStore } from '../stores/upload'
 import type { UploadTask, UploadSession } from '../stores/upload'
 import ObjectPicker from '../components/ObjectPicker.vue'
+import FileViewer from '../components/viewers/FileViewer.vue'
+import AppChooser from '../components/AppChooser.vue'
 import { useAreaSelection } from '../composables/useAreaSelection'
 import { useFileDragDrop } from '../composables/useFileDragDrop'
+import { useFileOpen, getFileIcon } from '../composables/useFileOpen'
 import api from '../utils/api'
 
 const UIcon = resolveComponent('UIcon')
@@ -28,6 +31,7 @@ const user = useUserStore()
 const auth = useAuthStore()
 const storageStore = useStorageStore()
 const upload = useUploadStore()
+const fileOpen = useFileOpen()
 const { t, locale } = useI18n()
 
 import type { AxiosError } from 'axios'
@@ -336,11 +340,10 @@ const columns = computed<TableColumn<FileObject>[]>(() => [
     accessorKey: 'name',
     header: t('file.name'),
     cell: ({ row }) => {
-      const icon = row.original.type === 'folder' ? 'i-lucide-folder' : 'i-lucide-file'
-      const color = row.original.type === 'folder' ? 'text-primary' : 'text-muted'
+      const isFolder = row.original.type === 'folder'
       return h('div', { class: 'flex items-center gap-2' }, [
-        h(UIcon, { name: icon, class: `size-5 shrink-0 ${color}` }),
-        h('span', { class: row.original.type === 'folder' ? 'font-medium' : '' }, row.original.name)
+        h(UIcon, { name: getFileIcon(row.original.name, isFolder), class: `size-5 shrink-0 ${isFolder ? 'text-primary' : 'text-muted'}` }),
+        h('span', { class: isFolder ? 'font-medium' : '' }, row.original.name)
       ])
     }
   },
@@ -440,13 +443,11 @@ function getFolderItems(obj: FileObject): ContextMenuItem[][] {
 function getFileItems(obj: FileObject): ContextMenuItem[][] {
   return [
     [
-      { label: t('common.open'), icon: 'i-lucide-external-link' },
+      { label: t('common.open'), icon: 'i-lucide-external-link', onSelect() { fileOpen.openFile({ id: obj.id, name: obj.name, size: obj.size }) } },
       {
         label: t('contextMenu.openWith'),
         icon: 'i-lucide-app-window',
-        children: [
-          { label: t('contextMenu.defaultApp') }
-        ]
+        onSelect() { fileOpen.openFileWith({ id: obj.id, name: obj.name, size: obj.size }) }
       }
     ],
     [
@@ -1065,6 +1066,8 @@ function onGridItemClick(e: MouseEvent, obj: FileObject, index: number) {
 function onGridItemDblClick(obj: FileObject) {
   if (obj.type === 'folder') {
     navigateToFolder(obj.name)
+  } else {
+    fileOpen.openFile({ id: obj.id, name: obj.name, size: obj.size })
   }
 }
 
@@ -1128,6 +1131,8 @@ function onRowSelect(e: Event, row: TableRow<FileObject>) {
   }
   if (row.original.type === 'folder') {
     navigateToFolder(row.original.name)
+  } else {
+    fileOpen.openFile({ id: row.original.id, name: row.original.name, size: row.original.size })
   }
 }
 
@@ -1573,7 +1578,7 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
                   />
                 </div>
                 <UIcon
-                  :name="obj.type === 'folder' ? 'i-lucide-folder' : 'i-lucide-file'"
+                  :name="getFileIcon(obj.name, obj.type === 'folder')"
                   :class="obj.type === 'folder' ? 'text-primary' : 'text-muted'"
                   class="size-12"
                 />
@@ -1605,7 +1610,7 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
       :style="{ left: fileDragDrop.previewPos.value.x + 'px', top: fileDragDrop.previewPos.value.y + 'px' }"
     >
       <UIcon
-        :name="fileDragDrop.dragItems.value[0]?.type === 'folder' ? 'i-lucide-folder' : 'i-lucide-file'"
+        :name="getFileIcon(fileDragDrop.dragItems.value[0]?.name ?? '', fileDragDrop.dragItems.value[0]?.type === 'folder')"
         :class="fileDragDrop.dragItems.value[0]?.type === 'folder' ? 'text-primary' : 'text-muted'"
         class="size-4 shrink-0"
       />
@@ -1949,4 +1954,7 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
       </div>
     </template>
   </UDrawer>
+
+  <FileViewer />
+  <AppChooser />
 </template>

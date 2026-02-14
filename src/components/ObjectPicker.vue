@@ -3,6 +3,7 @@ import { h, ref, watch, computed, resolveComponent } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { TableColumn, BreadcrumbItem } from '@nuxt/ui'
 import type { AxiosError } from 'axios'
+import { getFileIcon } from '../composables/useFileOpen'
 import api from '../utils/api'
 
 const UIcon = resolveComponent('UIcon')
@@ -212,11 +213,10 @@ const panelColumns = computed<TableColumn<FileObject>[]>(() => [
     accessorKey: 'name',
     header: t('file.name'),
     cell: ({ row }) => {
-      const icon = row.original.type === 'folder' ? 'i-lucide-folder' : 'i-lucide-file'
-      const color = row.original.type === 'folder' ? 'text-primary' : 'text-muted'
+      const isFolder = row.original.type === 'folder'
       return h('div', { class: 'flex items-center gap-2' }, [
-        h(UIcon, { name: icon, class: `size-5 shrink-0 ${color}` }),
-        h('span', { class: row.original.type === 'folder' ? 'font-medium' : '' }, row.original.name)
+        h(UIcon, { name: getFileIcon(row.original.name, isFolder), class: `size-5 shrink-0 ${isFolder ? 'text-primary' : 'text-muted'}` }),
+        h('span', { class: isFolder ? 'font-medium' : '' }, row.original.name)
       ])
     }
   },

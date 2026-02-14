@@ -5,6 +5,7 @@ import globals from 'globals'
 import autoImportGlobals from './.eslintrc-auto-import.json' with { type: 'json' }
 
 export default ts.config(
+  { ignores: ['public/**'] },
   js.configs.recommended,
   ...ts.configs.recommended,
   ...eslintPluginVue.configs['flat/recommended'],

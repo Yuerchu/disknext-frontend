@@ -12,6 +12,7 @@ import { useUserStore } from '../stores/user'
 import { useAuthStore } from '../stores/auth'
 import { useStorageStore } from '../stores/storage'
 import { useAreaSelection } from '../composables/useAreaSelection'
+import { getFileIcon } from '../composables/useFileOpen'
 import api from '../utils/api'
 
 const UIcon = resolveComponent('UIcon')
@@ -168,10 +169,9 @@ const columns = computed<TableColumn<TrashItem>[]>(() => [
     accessorKey: 'name',
     header: t('trash.fileName'),
     cell: ({ row }) => {
-      const icon = row.original.type === 'folder' ? 'i-lucide-folder' : 'i-lucide-file'
-      const color = row.original.type === 'folder' ? 'text-primary' : 'text-muted'
+      const isFolder = row.original.type === 'folder'
       return h('div', { class: 'flex items-center gap-2' }, [
-        h(UIcon, { name: icon, class: `size-5 shrink-0 ${color}` }),
+        h(UIcon, { name: getFileIcon(row.original.name, isFolder), class: `size-5 shrink-0 ${isFolder ? 'text-primary' : 'text-muted'}` }),
         h('span', {}, row.original.name)
       ])
     }

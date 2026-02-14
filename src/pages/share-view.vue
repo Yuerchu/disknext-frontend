@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { setLocale } from '../i18n'
 import axios from 'axios'
 import type { AxiosError } from 'axios'
+import { getFileIcon } from '../composables/useFileOpen'
 
 const route = useRoute()
 const { t, locale } = useI18n()
@@ -253,7 +254,7 @@ onMounted(() => {
           <div class="flex-1 min-w-0">
             <h1 class="text-xl font-semibold truncate flex items-center gap-2">
               <UIcon
-                :name="shareData.object.type === 'folder' ? 'i-lucide-folder' : 'i-lucide-file'"
+                :name="getFileIcon(shareData.object.name, shareData.object.type === 'folder')"
                 class="size-5 shrink-0"
               />
               {{ shareData.object.name }}
@@ -281,7 +282,7 @@ onMounted(() => {
             <template #name-cell="{ row }">
               <div class="flex items-center gap-2">
                 <UIcon
-                  :name="row.original.type === 'folder' ? 'i-lucide-folder' : 'i-lucide-file'"
+                  :name="getFileIcon(row.original.name, row.original.type === 'folder')"
                   class="size-4 shrink-0"
                 />
                 <span class="truncate">{{ row.original.name }}</span>
