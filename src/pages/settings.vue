@@ -122,6 +122,45 @@ async function onTimezoneChange(tz: number) {
   }
 }
 
+// Password change state
+const passwordModalOpen = ref(false)
+const oldPassword = ref('')
+const newPassword = ref('')
+const confirmPassword = ref('')
+const savingPassword = ref(false)
+
+const passwordMismatch = computed(() =>
+  confirmPassword.value !== '' && newPassword.value !== confirmPassword.value
+)
+const passwordValid = computed(() =>
+  oldPassword.value.length > 0 && newPassword.value.length >= 8 && newPassword.value === confirmPassword.value
+)
+
+async function changePassword() {
+  if (!passwordValid.value) return
+  savingPassword.value = true
+  try {
+    await api.patch('/api/v1/user/settings/password', {
+      old_password: oldPassword.value,
+      new_password: newPassword.value,
+    })
+    passwordModalOpen.value = false
+    oldPassword.value = ''
+    newPassword.value = ''
+    confirmPassword.value = ''
+    toast.add({ title: t('settings.passwordChanged'), icon: 'i-lucide-check-circle', color: 'success' })
+  } catch (e: unknown) {
+    const err = e as AxiosError<{ detail?: string }>
+    const status = err?.response?.status
+    let msg = err?.response?.data?.detail || t('settings.saveFailed')
+    if (status === 400) msg = t('settings.passwordNoCredential')
+    else if (status === 403) msg = t('settings.passwordWrong')
+    toast.add({ title: msg, icon: 'i-lucide-circle-x', color: 'error' })
+  } finally {
+    savingPassword.value = false
+  }
+}
+
 // 2FA setup state
 const tfaSetupModalOpen = ref(false)
 const tfaSetupLoading = ref(false)
@@ -487,6 +526,18 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
                     </span>
                   </div>
                 </UFormField>
+
+                <USeparator />
+
+                <UFormField :label="t('settings.password')">
+                  <UButton
+                    :label="t('settings.changePassword')"
+                    variant="outline"
+                    color="neutral"
+                    icon="i-lucide-key-round"
+                    @click="passwordModalOpen = true"
+                  />
+                </UFormField>
               </div>
             </template>
 
@@ -672,6 +723,63 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
           color="error"
           :loading="tfaDisabling"
           @click="confirmDisableTfa"
+        />
+      </template>
+    </UModal>
+    <!-- Change Password Modal -->
+    <UModal
+      v-model:open="passwordModalOpen"
+      :title="t('settings.changePassword')"
+      :dismissible="!savingPassword"
+      :ui="{ footer: 'justify-end' }"
+    >
+      <template #body>
+        <div class="flex flex-col gap-4">
+          <UFormField :label="t('settings.oldPassword')">
+            <UInput
+              v-model="oldPassword"
+              type="password"
+              :placeholder="t('settings.oldPasswordPlaceholder')"
+              class="w-full"
+            />
+          </UFormField>
+
+          <UFormField :label="t('settings.newPassword')">
+            <UInput
+              v-model="newPassword"
+              type="password"
+              :placeholder="t('settings.newPasswordPlaceholder')"
+              class="w-full"
+            />
+          </UFormField>
+
+          <UFormField
+            :label="t('settings.confirmPassword')"
+            :error="passwordMismatch ? t('settings.passwordMismatch') : undefined"
+          >
+            <UInput
+              v-model="confirmPassword"
+              type="password"
+              :placeholder="t('settings.confirmPasswordPlaceholder')"
+              class="w-full"
+            />
+          </UFormField>
+        </div>
+      </template>
+
+      <template #footer>
+        <UButton
+          :label="t('common.cancel')"
+          color="neutral"
+          variant="outline"
+          :disabled="savingPassword"
+          @click="passwordModalOpen = false"
+        />
+        <UButton
+          :label="t('common.confirm')"
+          :disabled="!passwordValid"
+          :loading="savingPassword"
+          @click="changePassword"
         />
       </template>
     </UModal>

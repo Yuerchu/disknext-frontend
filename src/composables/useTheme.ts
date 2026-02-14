@@ -43,7 +43,7 @@ export function useTheme() {
 
   async function fetchPresets() {
     try {
-      const { data } = await api.get<{ themes: ThemePreset[] }>('/api/v1/site/themes/')
+      const { data } = await api.get<{ themes: ThemePreset[] }>('/api/v1/site/themes')
       presets.value = data.themes
     } catch {
       // silently ignore - presets are optional

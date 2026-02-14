@@ -17,7 +17,7 @@ const presets = ref<ThemePreset[]>([])
 async function fetchPresets() {
   loading.value = true
   try {
-    const { data } = await api.get<{ themes: ThemePreset[] }>('/api/v1/admin/theme/')
+    const { data } = await api.get<{ themes: ThemePreset[] }>('/api/v1/admin/theme')
     presets.value = data.themes
   } catch (e: unknown) {
     const err = e as AxiosError<ApiErrorResponse>
@@ -79,7 +79,7 @@ async function submitForm() {
       })
       toast.add({ title: t('theme.admin.updateSuccess'), icon: 'i-lucide-check-circle', color: 'success' })
     } else {
-      await api.post('/api/v1/admin/theme/', {
+      await api.post('/api/v1/admin/theme', {
         name: formData.value.name,
         colors: formData.value.colors
       })

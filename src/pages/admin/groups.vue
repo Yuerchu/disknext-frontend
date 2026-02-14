@@ -72,7 +72,7 @@ function formatSpeed(bytesPerSecond: number): string {
 async function fetchGroups() {
   loading.value = true
   try {
-    const { data } = await api.get<GroupListResponse>('/api/v1/admin/group/', {
+    const { data } = await api.get<GroupListResponse>('/api/v1/admin/group', {
       params: {
         offset: (page.value - 1) * pageSize,
         limit: pageSize,
@@ -270,7 +270,7 @@ async function submitForm() {
       await api.patch(`/api/v1/admin/group/${editingGroup.value!.id}`, formData.value)
       toast.add({ title: t('group.updateSuccess'), icon: 'i-lucide-check-circle', color: 'success' })
     } else {
-      await api.post('/api/v1/admin/group/', formData.value)
+      await api.post('/api/v1/admin/group', formData.value)
       toast.add({ title: t('group.createSuccess'), icon: 'i-lucide-check-circle', color: 'success' })
     }
     formModalOpen.value = false

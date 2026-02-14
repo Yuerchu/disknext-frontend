@@ -361,7 +361,7 @@ async function onRegisterSubmit(payload: FormSubmitEvent<RegisterSchema>) {
       body.captcha = captchaCode.value
     }
 
-    await api.post('/api/v1/user/', body)
+    await api.post('/api/v1/user', body)
 
     toast.add({ title: t('session.registerSuccess'), color: 'success' })
 

@@ -84,7 +84,7 @@ async function fetchShares() {
     }
     if (debouncedSearch.value) params.keyword = debouncedSearch.value
     if (filterExpired.value) params.expired = filterExpired.value === 'true'
-    const { data } = await api.get<ShareListResponse>('/api/v1/share/', { params })
+    const { data } = await api.get<ShareListResponse>('/api/v1/share', { params })
     shares.value = data.items
     total.value = data.count
   } catch (e: unknown) {

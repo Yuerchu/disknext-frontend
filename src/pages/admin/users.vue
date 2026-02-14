@@ -60,7 +60,7 @@ const groupFormItems = computed(() =>
 
 async function fetchGroupList() {
   try {
-    const { data } = await api.get<{ count: number; items: SimpleGroup[] }>('/api/v1/admin/group/', {
+    const { data } = await api.get<{ count: number; items: SimpleGroup[] }>('/api/v1/admin/group', {
       params: { offset: 0, limit: 100 }
     })
     groupList.value = data.items
@@ -383,7 +383,7 @@ async function confirmDelete() {
   if (!deletingUser.value) return
   deleting.value = true
   try {
-    await api.delete('/api/v1/admin/user/', { data: { ids: [deletingUser.value.id] } })
+    await api.delete('/api/v1/admin/user', { data: { ids: [deletingUser.value.id] } })
     toast.add({ title: t('adminUser.deleteSuccess'), icon: 'i-lucide-check-circle', color: 'success' })
     deleteModalOpen.value = false
     fetchUsers()
