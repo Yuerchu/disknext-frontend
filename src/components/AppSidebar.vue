@@ -60,7 +60,8 @@ const items = computed<NavigationMenuItem[][]>(() => [
     },
     {
       label: t('nav.mountAndClient'),
-      icon: 'i-lucide-hard-drive'
+      icon: 'i-lucide-hard-drive',
+      to: '/mount'
     },
     {
       label: t('nav.tasksAndDownloads'),
@@ -93,7 +94,7 @@ const adminItems = computed<NavigationMenuItem[]>(() => [
       <RouterLink to="/home">
         <AppLogo
           v-if="!collapsed"
-          class="h-auto w-full shrink-0 p-3"
+          class="h-auto w-full shrink-0 p-8"
         />
         <UIcon
           v-else

@@ -6,7 +6,10 @@ import ui from '@nuxt/ui/vite'
 export default defineConfig({
   server: {
     proxy: {
-      '/api': 'http://127.0.0.1:8000'
+      '/api': 'http://127.0.0.1:8000',
+      '/dav': 'http://127.0.0.1:8000',
+      '/emby': 'http://127.0.0.1:8000',
+      '/subsonic': 'http://127.0.0.1:8000'
     }
   },
   plugins: [

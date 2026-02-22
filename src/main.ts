@@ -35,7 +35,10 @@ router.beforeEach(async (to) => {
       auth.logout()
       return '/session'
     }
-    // access token 过期但 refresh token 有效，交给 axios 拦截器处理刷新
+    const ok = await auth.refresh()
+    if (!ok) {
+      return '/session'
+    }
   }
 
   if (!user.fetched) {

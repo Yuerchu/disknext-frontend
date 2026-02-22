@@ -60,7 +60,7 @@ const groupFormItems = computed(() =>
 
 async function fetchGroupList() {
   try {
-    const { data } = await api.get<{ count: number; items: SimpleGroup[] }>('/api/v1/admin/group', {
+    const { data } = await api.get<{ count: number; items: SimpleGroup[] }>('/api/v1/admin/group/', {
       params: { offset: 0, limit: 100 }
     })
     groupList.value = data.items
