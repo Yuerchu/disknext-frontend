@@ -55,6 +55,29 @@ const orderOptions = [
   { label: t('group.orderUpdatedAt'), value: 'updated_at' }
 ]
 
+// Policy list for storage policy selector
+interface PolicyOption {
+  id: string
+  name: string
+}
+
+const policyList = ref<PolicyOption[]>([])
+const policiesLoading = ref(false)
+
+async function fetchPolicyList() {
+  policiesLoading.value = true
+  try {
+    const { data } = await api.get<{ count: number; items: PolicyOption[] }>('/api/v1/admin/policy/list', {
+      params: { offset: 0, limit: 100 }
+    })
+    policyList.value = data.items ?? []
+  } catch {
+    // silent
+  } finally {
+    policiesLoading.value = false
+  }
+}
+
 function formatSize(bytes: number): string {
   if (bytes === 0) return '-'
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
@@ -101,7 +124,10 @@ watch([orderBy, orderDesc], () => {
   fetchGroups()
 })
 
-onMounted(() => fetchGroups())
+onMounted(() => {
+  fetchGroups()
+  fetchPolicyList()
+})
 
 // Table columns
 function getDropdownItems(group: Group): DropdownMenuItem[][] {
@@ -196,6 +222,7 @@ const formData = ref({
   max_storage: 0,
   speed_limit: 0,
   source_batch: 0,
+  policy_ids: [] as string[],
   share_enabled: false,
   web_dav_enabled: false,
   share_download: false,
@@ -218,6 +245,7 @@ function resetForm() {
     max_storage: 0,
     speed_limit: 0,
     source_batch: 0,
+    policy_ids: [],
     share_enabled: false,
     web_dav_enabled: false,
     share_download: false,
@@ -246,6 +274,7 @@ function openEditModal(group: Group) {
     max_storage: group.max_storage,
     speed_limit: group.speed_limit,
     source_batch: group.source_batch,
+    policy_ids: [...group.policy_ids],
     share_enabled: group.share_enabled,
     web_dav_enabled: group.web_dav_enabled,
     share_download: group.share_download,
@@ -267,7 +296,7 @@ async function submitForm() {
   submitting.value = true
   try {
     if (isEditing.value) {
-      await api.patch(`/api/v1/admin/group/${editingGroup.value!.id}/`, formData.value)
+      await api.patch(`/api/v1/admin/group/${editingGroup.value!.id}`, formData.value)
       toast.add({ title: t('group.updateSuccess'), icon: 'i-lucide-check-circle', color: 'success' })
     } else {
       await api.post('/api/v1/admin/group/', formData.value)
@@ -328,6 +357,11 @@ const maxStorageGB = computed({
 const speedLimitMB = computed({
   get: () => formData.value.speed_limit / (1024 * 1024),
   set: (v: number | null) => { formData.value.speed_limit = (v ?? 0) * 1024 * 1024 }
+})
+
+const selectedPolicies = computed({
+  get: () => policyList.value.filter(p => formData.value.policy_ids.includes(p.id)),
+  set: (v: PolicyOption[]) => { formData.value.policy_ids = v.map(p => p.id) }
 })
 </script>
 
@@ -447,6 +481,22 @@ const speedLimitMB = computed({
               />
               <p class="text-xs text-muted mt-1">
                 {{ t('group.sourceBatchDesc') }}
+              </p>
+            </div>
+            <div>
+              <label class="text-sm font-medium mb-1 block">{{ t('group.storagePolicies') }}</label>
+              <USelectMenu
+                v-model="selectedPolicies"
+                :items="policyList"
+                by="id"
+                label-key="name"
+                multiple
+                :loading="policiesLoading"
+                :placeholder="t('group.selectPolicies')"
+                class="w-full"
+              />
+              <p class="text-xs text-muted mt-1">
+                {{ t('group.storagePoliciesDesc') }}
               </p>
             </div>
           </div>
