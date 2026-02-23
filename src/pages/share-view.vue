@@ -188,7 +188,7 @@ onMounted(() => {
           >
             <UInput
               v-model="password"
-              type="text"
+              type="password"
               :placeholder="t('shareView.passwordPlaceholder')"
               icon="i-lucide-key-round"
               autofocus

@@ -91,15 +91,18 @@ const adminItems = computed<NavigationMenuItem[]>(() => [
     resizable
   >
     <template #header="{ collapsed }">
-      <RouterLink to="/home">
+      <RouterLink
+        to="/home"
+        class="flex items-center justify-center w-full"
+      >
         <AppLogo
           v-if="!collapsed"
-          class="h-auto w-full shrink-0 p-8"
+          class="h-8 w-auto max-w-full shrink-0"
         />
         <UIcon
           v-else
           name="i-lucide-hard-drive"
-          class="size-5 text-primary mx-auto"
+          class="size-5 text-primary"
         />
       </RouterLink>
     </template>

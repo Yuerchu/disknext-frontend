@@ -215,7 +215,7 @@ const columns = computed<TableColumn<User>[]>(() => [
     cell: ({ row }) => {
       const cfg = statusConfig[row.original.status]
       if (!cfg) return row.original.status
-      return h(UBadge, { color: cfg.color, variant: 'subtle', size: 'xs' }, { default: () => t(cfg.key) })
+      return h(UBadge, { color: cfg.color, variant: 'subtle', size: 'md' }, { default: () => t(cfg.key) })
     }
   },
   {

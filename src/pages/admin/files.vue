@@ -157,7 +157,7 @@ const columns = computed<TableColumn<AdminFile>[]>(() => [
       return h(UBadge, {
         color: isFolder ? 'info' : 'neutral',
         variant: 'subtle',
-        size: 'xs'
+        size: 'md'
       }, {
         default: () => isFolder ? t('adminFile.fileTypeFolder') : t('adminFile.fileTypeFile')
       })
@@ -183,7 +183,7 @@ const columns = computed<TableColumn<AdminFile>[]>(() => [
       return h(UBadge, {
         color: row.original.is_banned ? 'error' : 'success',
         variant: 'subtle',
-        size: 'xs'
+        size: 'md'
       }, {
         default: () => row.original.is_banned ? t('adminFile.statusBanned') : t('adminFile.statusNormal')
       })

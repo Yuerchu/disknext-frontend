@@ -8,6 +8,7 @@
     "preview": "vite preview",
     "lint": "eslint --ext .js,.vue src",
     "typecheck": "vue-tsc -p ./tsconfig.app.json",
+    "check:reserved": "node scripts/check-reserved-files.mjs",
     "prepare": "husky"
   },
   "dependencies": {

@@ -118,9 +118,20 @@ async function fetchGroups() {
   }
 }
 
-watch(page, () => fetchGroups())
+let skipNextPageFetch = false
+
+watch(page, () => {
+  if (skipNextPageFetch) {
+    skipNextPageFetch = false
+    return
+  }
+  fetchGroups()
+})
 watch([orderBy, orderDesc], () => {
-  page.value = 1
+  if (page.value !== 1) {
+    skipNextPageFetch = true
+    page.value = 1
+  }
   fetchGroups()
 })
 
@@ -157,7 +168,7 @@ const columns = computed<TableColumn<Group>[]>(() => [
     cell: ({ row }) => {
       const children = [h('span', row.original.name)]
       if (row.original.admin) {
-        children.push(h(UBadge, { color: 'error', variant: 'subtle', size: 'xs', class: 'ml-2' }, () => t('user.admin')))
+        children.push(h(UBadge, { color: 'error', variant: 'subtle', size: 'md', class: 'ml-2' }, () => t('user.admin')))
       }
       return h('div', { class: 'flex items-center' }, children)
     }
@@ -182,13 +193,13 @@ const columns = computed<TableColumn<Group>[]>(() => [
     cell: ({ row }) => {
       const badges: ReturnType<typeof h>[] = []
       if (row.original.share_enabled) {
-        badges.push(h(UBadge, { color: 'primary', variant: 'subtle', size: 'xs' }, () => t('group.shareEnabled')))
+        badges.push(h(UBadge, { color: 'primary', variant: 'subtle', size: 'md' }, () => t('group.shareEnabled')))
       }
       if (row.original.web_dav_enabled) {
-        badges.push(h(UBadge, { color: 'info', variant: 'subtle', size: 'xs' }, () => t('group.webDavEnabled')))
+        badges.push(h(UBadge, { color: 'info', variant: 'subtle', size: 'md' }, () => t('group.webDavEnabled')))
       }
       if (row.original.aria2) {
-        badges.push(h(UBadge, { color: 'warning', variant: 'subtle', size: 'xs' }, () => t('group.aria2')))
+        badges.push(h(UBadge, { color: 'warning', variant: 'subtle', size: 'md' }, () => t('group.aria2')))
       }
       return h('div', { class: 'flex items-center gap-1 flex-wrap' }, badges)
     }

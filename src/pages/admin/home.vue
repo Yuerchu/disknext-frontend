@@ -223,7 +223,7 @@ function formatDate(iso: string): string {
                 v-if="summary.version.pro"
                 color="primary"
                 variant="subtle"
-                size="xs"
+                size="md"
               >
                 Pro
               </UBadge>

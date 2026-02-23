@@ -8,7 +8,6 @@ import type { BreadcrumbItem, DropdownMenuItem, TableColumn, ContextMenuItem, Ta
 type RowSelectionState = Record<string, boolean>
 import { useAdminStore } from '../stores/admin'
 import { useUserStore } from '../stores/user'
-import { useAuthStore } from '../stores/auth'
 import { useStorageStore } from '../stores/storage'
 import { useUploadStore } from '../stores/upload'
 import type { UploadTask, UploadSession } from '../stores/upload'
@@ -18,6 +17,7 @@ import AppChooser from '../components/AppChooser.vue'
 import { useAreaSelection } from '../composables/useAreaSelection'
 import { useFileDragDrop } from '../composables/useFileDragDrop'
 import { useFileOpen, getFileIcon } from '../composables/useFileOpen'
+import { clearSessionStores } from '../utils/session'
 import api from '../utils/api'
 
 const UIcon = resolveComponent('UIcon')
@@ -28,7 +28,6 @@ const route = useRoute()
 const toast = useToast()
 const admin = useAdminStore()
 const user = useUserStore()
-const auth = useAuthStore()
 const storageStore = useStorageStore()
 const upload = useUploadStore()
 const fileOpen = useFileOpen()
@@ -130,6 +129,26 @@ interface DirectoryResponse {
     max_size: number
     file_type: string[] | null
   }
+}
+
+interface PolicySummary {
+  id: string
+  name: string
+  type: string
+  server: string | null
+  max_size: number
+  is_private: boolean
+}
+
+interface TaskSummary {
+  id: number
+  type: string
+  status: string
+  progress: number
+  error: string | null
+  user_id: string
+  created_at: string
+  updated_at: string
 }
 
 const directory = ref<DirectoryResponse | null>(null)
@@ -425,7 +444,8 @@ function getFolderItems(obj: FileObject): ContextMenuItem[][] {
       { label: t('contextMenu.moveTo'), icon: 'i-lucide-move', onSelect() { openMoveTo(obj) } }
     ],
     [
-      { label: t('common.details'), icon: 'i-lucide-info' }
+      { label: t('common.details'), icon: 'i-lucide-info' },
+      { label: t('policySwitch.title'), icon: 'i-lucide-database', onSelect() { openPolicySwitchModal(obj) } }
     ],
     [
       {
@@ -465,7 +485,8 @@ function getFileItems(obj: FileObject): ContextMenuItem[][] {
       { label: t('contextMenu.getDirectLink'), icon: 'i-lucide-link' }
     ],
     [
-      { label: t('common.details'), icon: 'i-lucide-info' }
+      { label: t('common.details'), icon: 'i-lucide-info' },
+      { label: t('policySwitch.title'), icon: 'i-lucide-database', onSelect() { openPolicySwitchModal(obj) } }
     ],
     [
       {
@@ -703,6 +724,59 @@ function copyShareLink() {
   if (!shareResult.value) return
   navigator.clipboard.writeText(getShareLink(shareResult.value.shareId))
   toast.add({ title: t('shareModal.copied'), icon: 'i-lucide-check-circle', color: 'success' })
+}
+
+// Policy switch modal
+const policySwitchOpen = ref(false)
+const policySwitchTarget = ref<FileObject | null>(null)
+const policySwitchPolicies = ref<PolicySummary[]>([])
+const policySwitchLoading = ref(false)
+const policySwitchSubmitting = ref(false)
+const policySwitchForm = ref({
+  policy_id: '',
+  is_migrate_existing: false
+})
+
+async function openPolicySwitchModal(obj: FileObject) {
+  policySwitchTarget.value = obj
+  policySwitchForm.value = { policy_id: '', is_migrate_existing: false }
+  policySwitchOpen.value = true
+  policySwitchLoading.value = true
+  try {
+    const { data } = await api.get<PolicySummary[]>('/api/v1/user/settings/policies')
+    policySwitchPolicies.value = data
+  } catch (e: unknown) {
+    showApiError(e as AxiosError<ApiErrorResponse>, t('policySwitch.fetchFailed'))
+    policySwitchOpen.value = false
+  } finally {
+    policySwitchLoading.value = false
+  }
+}
+
+async function confirmPolicySwitch() {
+  if (!policySwitchTarget.value || !policySwitchForm.value.policy_id) return
+  policySwitchSubmitting.value = true
+  try {
+    const { data } = await api.patch<TaskSummary>(
+      `/api/v1/object/${policySwitchTarget.value.id}/policy`,
+      {
+        policy_id: policySwitchForm.value.policy_id,
+        is_migrate_existing: policySwitchForm.value.is_migrate_existing
+      }
+    )
+    policySwitchOpen.value = false
+    toast.add({
+      title: t('policySwitch.taskCreated'),
+      description: t('policySwitch.taskId', { id: data.id }),
+      icon: 'i-lucide-check-circle',
+      color: 'success'
+    })
+    fetchDirectory(currentPath.value)
+  } catch (e: unknown) {
+    showApiError(e as AxiosError<ApiErrorResponse>, t('policySwitch.failed'))
+  } finally {
+    policySwitchSubmitting.value = false
+  }
 }
 
 // Object picker for copy/move
@@ -1210,8 +1284,7 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
       icon: 'i-lucide-log-out',
       color: 'error',
       onSelect() {
-        auth.logout()
-        user.clear()
+        clearSessionStores()
         router.push('/session')
       }
     }
@@ -1839,6 +1912,58 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
     </template>
   </UModal>
 
+  <UModal
+    v-model:open="policySwitchOpen"
+    :title="t('policySwitch.title')"
+    :description="t('policySwitch.desc')"
+    :ui="{ footer: 'justify-end', description: 'sr-only' }"
+  >
+    <template #body>
+      <div class="space-y-4">
+        <p class="text-sm">
+          {{ t('policySwitch.switching') }}
+        </p>
+        <UTooltip :text="policySwitchTarget?.name">
+          <p class="text-sm font-medium truncate max-w-full">
+            {{ policySwitchTarget?.name }}
+          </p>
+        </UTooltip>
+
+        <UFormField :label="t('policySwitch.targetPolicy')">
+          <USelectMenu
+            v-model="policySwitchForm.policy_id"
+            :items="policySwitchPolicies.map(p => ({ label: p.name, value: p.id }))"
+            value-key="value"
+            :loading="policySwitchLoading"
+            :placeholder="t('policySwitch.selectPolicy')"
+            class="w-full"
+          />
+        </UFormField>
+
+        <UCheckbox
+          v-if="policySwitchTarget?.type === 'folder'"
+          v-model="policySwitchForm.is_migrate_existing"
+          :label="t('policySwitch.migrateExisting')"
+          :description="t('policySwitch.migrateExistingDesc')"
+        />
+      </div>
+    </template>
+    <template #footer>
+      <UButton
+        :label="t('common.cancel')"
+        color="neutral"
+        variant="outline"
+        @click="policySwitchOpen = false"
+      />
+      <UButton
+        :label="t('common.confirm')"
+        :loading="policySwitchSubmitting"
+        :disabled="!policySwitchForm.policy_id"
+        @click="confirmPolicySwitch"
+      />
+    </template>
+  </UModal>
+
   <ObjectPicker
     v-model:open="pickerOpen"
     :title="pickerMode === 'copy' ? t('objectPicker.copyTitle') : t('objectPicker.moveTitle')"
@@ -1908,7 +2033,7 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
           </div>
           <template v-if="task.status === 'uploading'">
             <UProgress
-              :value="taskPercent(task)"
+              :model-value="taskPercent(task)"
               size="xs"
             />
             <div class="flex items-center justify-between text-xs text-muted">

@@ -8,6 +8,11 @@ export const useAdminStore = defineStore('admin', {
   }),
 
   actions: {
+    reset() {
+      this.isAdmin = false
+      this.checked = false
+    },
+
     async checkAdmin() {
       try {
         const { status } = await api.get('/api/v1/admin/')

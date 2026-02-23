@@ -221,7 +221,7 @@ function getColorsForKey(key: keyof ThemeColors): readonly string[] {
               v-if="preset.is_default"
               :label="t('theme.admin.default')"
               variant="subtle"
-              size="xs"
+              size="md"
               class="ml-2"
             />
           </div>

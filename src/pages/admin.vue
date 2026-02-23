@@ -132,6 +132,11 @@ const items = computed<NavigationMenuItem[][]>(() => [
       to: '/admin/shares'
     },
     {
+      label: t('admin.tasks'),
+      icon: 'i-lucide-list-checks',
+      to: '/admin/tasks'
+    },
+    {
       label: t('admin.orders'),
       icon: 'i-lucide-receipt',
       to: '/admin/orders'
@@ -171,15 +176,18 @@ const items = computed<NavigationMenuItem[][]>(() => [
       resizable
     >
       <template #header="{ collapsed }">
-        <RouterLink to="/admin">
+        <RouterLink
+          to="/admin"
+          class="flex items-center justify-center w-full"
+        >
           <AppLogo
             v-if="!collapsed"
-            class="h-auto w-full shrink-0 p-3"
+            class="h-8 w-auto max-w-full shrink-0"
           />
           <UIcon
             v-else
             name="i-lucide-shield"
-            class="size-5 text-primary mx-auto"
+            class="size-5 text-primary"
           />
         </RouterLink>
       </template>

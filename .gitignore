@@ -34,3 +34,6 @@ tsconfig.node.tsbuildinfo
 
 # ai-generated
 .claude/
+
+# Reserved filenames on Windows
+nul

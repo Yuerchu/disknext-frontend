@@ -170,6 +170,8 @@ const viewerState = ref<ViewerState | null>(null)
 const chooserOpen = ref(false)
 const chooserFile = ref<FileBasicInfo | null>(null)
 const chooserViewers = ref<FileAppSummary[]>([])
+let launchSeq = 0
+let closeTimer: ReturnType<typeof setTimeout> | null = null
 
 export function useFileOpen() {
   const toast = useToast()
@@ -277,6 +279,12 @@ export function useFileOpen() {
 
   /** Launch the viewer modal and prepare file content */
   async function launchViewer(file: FileBasicInfo, viewer: FileAppSummary) {
+    const requestSeq = ++launchSeq
+    if (closeTimer) {
+      clearTimeout(closeTimer)
+      closeTimer = null
+    }
+
     viewerState.value = {
       fileId: file.id,
       fileName: file.name,
@@ -291,36 +299,41 @@ export function useFileOpen() {
     }
     viewerOpen.value = true
 
+    const safeSetViewerState = (next: Partial<ViewerState>) => {
+      if (requestSeq !== launchSeq) return
+      if (!viewerState.value || viewerState.value.fileId !== file.id) return
+      viewerState.value = { ...viewerState.value, ...next }
+    }
+
     try {
       if (viewer.type === 'builtin') {
         if (TEXT_CONTENT_APPS.has(viewer.app_key)) {
           const { data } = await api.get<TextContentResponse>(`/api/v1/file/content/${file.id}`)
-          viewerState.value = {
-            ...viewerState.value!,
+          safeSetViewerState({
             textContent: data.content,
             baseHash: data.hash,
             originalContent: data.content,
             loading: false,
-          }
+          })
         } else {
           const token = await getDownloadToken(file.id)
           const tokenUrl = buildTokenUrl(token)
-          viewerState.value = { ...viewerState.value!, contentUrl: tokenUrl, loading: false }
+          safeSetViewerState({ contentUrl: tokenUrl, loading: false })
         }
       } else if (viewer.type === 'iframe') {
         const token = await getDownloadToken(file.id)
         const fileUrl = buildTokenUrl(token)
         const src = (viewer.iframe_url_template || '').replace('{file_url}', encodeURIComponent(fileUrl))
-        viewerState.value = { ...viewerState.value!, contentUrl: src, loading: false }
+        safeSetViewerState({ contentUrl: src, loading: false })
       } else if (viewer.type === 'wopi') {
         const { data } = await api.post<WopiSessionResponse>(`/api/v1/file/${file.id}/wopi-session`)
-        viewerState.value = { ...viewerState.value!, contentUrl: data.editor_url, loading: false }
+        safeSetViewerState({ contentUrl: data.editor_url, loading: false })
       }
     } catch (e: unknown) {
       const msg = (e as { response?: { status?: number } })?.response?.status === 404
         ? t('viewer.fileNotFound')
         : t('viewer.loadErrorDesc')
-      viewerState.value = { ...viewerState.value!, error: msg, loading: false }
+      safeSetViewerState({ error: msg, loading: false })
     }
   }
 
@@ -381,8 +394,12 @@ export function useFileOpen() {
   /** Close the viewer modal */
   function closeViewer() {
     viewerOpen.value = false
-    setTimeout(() => {
-      viewerState.value = null
+    const closingSeq = launchSeq
+    if (closeTimer) clearTimeout(closeTimer)
+    closeTimer = setTimeout(() => {
+      if (closingSeq !== launchSeq) return
+      if (!viewerOpen.value) viewerState.value = null
+      closeTimer = null
     }, 300)
   }
 

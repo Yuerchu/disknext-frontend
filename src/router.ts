@@ -32,6 +32,7 @@ const router = createRouter({
         { path: 'files', component: () => import('./pages/admin/files.vue') },
         { path: 'blobs', component: () => import('./pages/admin/placeholder.vue') },
         { path: 'shares', component: () => import('./pages/admin/shares.vue') },
+        { path: 'tasks', component: () => import('./pages/admin/tasks.vue') },
         { path: 'orders', component: () => import('./pages/admin/placeholder.vue') },
         { path: 'events', component: () => import('./pages/admin/placeholder.vue') },
         { path: 'reports', component: () => import('./pages/admin/placeholder.vue') },

@@ -1,1 +1,2 @@
+node scripts/check-reserved-files.mjs
 npx lint-staged

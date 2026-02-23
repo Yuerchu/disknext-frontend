@@ -320,7 +320,7 @@ onMounted(() => fetchSettings())
                 >
                   <USwitch
                     :model-value="form[oauthProviderMap[item.value].enabledField] === '1'"
-                    @update:model-value="v => form[oauthProviderMap[item.value].enabledField] = v ? '1' : '0'"
+                    @update:model-value="(v: boolean) => form[oauthProviderMap[item.value].enabledField] = v ? '1' : '0'"
                   />
                 </UFormField>
                 <template v-if="form[oauthProviderMap[item.value].enabledField] === '1'">
@@ -333,6 +333,7 @@ onMounted(() => fetchSettings())
                   <UFormField :label="oauthProviderMap[item.value].secretLabel">
                     <UInput
                       v-model="form[oauthProviderMap[item.value].secretField]"
+                      type="password"
                       class="w-full"
                     />
                   </UFormField>

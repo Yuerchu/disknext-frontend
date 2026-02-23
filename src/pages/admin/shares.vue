@@ -236,7 +236,7 @@ const columns = computed<TableColumn<AdminShareItem>[]>(() => [
       label: row.original.preview_enabled ? t('adminShare.previewOn') : t('adminShare.previewOff'),
       color: row.original.preview_enabled ? 'success' : 'neutral',
       variant: 'subtle',
-      size: 'xs'
+      size: 'md'
     })
   },
   {
@@ -394,7 +394,7 @@ const columns = computed<TableColumn<AdminShareItem>[]>(() => [
             :label="shareDetail.preview_enabled ? t('adminShare.previewOn') : t('adminShare.previewOff')"
             :color="shareDetail.preview_enabled ? 'success' : 'neutral'"
             variant="subtle"
-            size="xs"
+            size="md"
           />
         </div>
         <div class="flex justify-between">

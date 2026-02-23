@@ -106,9 +106,20 @@ async function fetchPolicies() {
   }
 }
 
-watch(page, () => fetchPolicies())
+let skipNextPageFetch = false
+
+watch(page, () => {
+  if (skipNextPageFetch) {
+    skipNextPageFetch = false
+    return
+  }
+  fetchPolicies()
+})
 watch([orderBy, orderDesc], () => {
-  page.value = 1
+  if (page.value !== 1) {
+    skipNextPageFetch = true
+    page.value = 1
+  }
   fetchPolicies()
 })
 
@@ -147,7 +158,7 @@ const columns = computed<TableColumn<PolicyListItem>[]>(() => [
       label: row.original.type === 'local' ? t('policy.typeLocal') : t('policy.typeS3'),
       color: row.original.type === 'local' ? 'neutral' : 'primary',
       variant: 'subtle',
-      size: 'xs'
+      size: 'md'
     })
   },
   {
@@ -173,7 +184,7 @@ const columns = computed<TableColumn<PolicyListItem>[]>(() => [
       label: row.original.is_private ? t('adminShare.yes') : t('adminShare.no'),
       color: row.original.is_private ? 'warning' : 'neutral',
       variant: 'subtle',
-      size: 'xs'
+      size: 'md'
     })
   },
   {
