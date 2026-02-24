@@ -12,6 +12,10 @@ export interface ViewerState {
   viewer: FileAppSummary
   /** URL for URL-based builtin viewers, iframe src, or wopi editor_url */
   contentUrl: string | null
+  /** WOPI access token (POST form hidden field) */
+  wopiAccessToken: string | null
+  /** WOPI access token TTL in ms (POST form hidden field) */
+  wopiAccessTokenTtl: number | null
   /** Text content for text-based builtin viewers (monaco, markdown) */
   textContent: string | null
   /** SHA-256 hash of the text content (from GET /content API) */
@@ -291,6 +295,8 @@ export function useFileOpen() {
       fileSize: file.size,
       viewer,
       contentUrl: null,
+      wopiAccessToken: null,
+      wopiAccessTokenTtl: null,
       textContent: null,
       baseHash: null,
       originalContent: null,
@@ -327,7 +333,12 @@ export function useFileOpen() {
         safeSetViewerState({ contentUrl: src, loading: false })
       } else if (viewer.type === 'wopi') {
         const { data } = await api.post<WopiSessionResponse>(`/api/v1/file/${file.id}/wopi-session`)
-        safeSetViewerState({ contentUrl: data.editor_url, loading: false })
+        safeSetViewerState({
+          contentUrl: data.editor_url,
+          wopiAccessToken: data.access_token,
+          wopiAccessTokenTtl: data.access_token_ttl,
+          loading: false,
+        })
       }
     } catch (e: unknown) {
       const msg = (e as { response?: { status?: number } })?.response?.status === 404

@@ -34,6 +34,12 @@ interface FileAppListResponse {
   total: number
 }
 
+interface DiscoveryResult {
+  discovered_extensions: { extension: string; action_url: string }[]
+  app_names: string[]
+  applied_count: number
+}
+
 interface SimpleGroup {
   id: string
   name: string
@@ -288,12 +294,14 @@ function resetForm() {
 function openCreateModal() {
   editingApp.value = null
   resetForm()
+  discoveryResult.value = null
   fetchGroupList()
   formModalOpen.value = true
 }
 
 function openEditModal(app: FileApp) {
   editingApp.value = app
+  discoveryResult.value = null
   fetchGroupList()
   formData.value = {
     name: app.name,
@@ -374,6 +382,33 @@ async function submitForm() {
     })
   } finally {
     submitting.value = false
+  }
+}
+
+// WOPI Discovery
+const discovering = ref(false)
+const discoveryResult = ref<DiscoveryResult | null>(null)
+
+async function discoverWopi() {
+  if (!editingApp.value) return
+  discovering.value = true
+  discoveryResult.value = null
+  try {
+    const { data } = await api.post<DiscoveryResult>(`/api/v1/admin/file-app/${editingApp.value.id}/discover`)
+    discoveryResult.value = data
+    formData.value.extensionsText = data.discovered_extensions.map(e => e.extension).join(', ')
+    toast.add({ title: t('fileApp.wopiDiscoverSuccess'), icon: 'i-lucide-check-circle', color: 'success' })
+    fetchApps()
+  } catch (e: unknown) {
+    const err = e as AxiosError<ApiErrorResponse>
+    toast.add({
+      title: t('fileApp.wopiDiscoverFailed'),
+      description: err.response?.data?.detail || '',
+      icon: 'i-lucide-circle-x',
+      color: 'error'
+    })
+  } finally {
+    discovering.value = false
   }
 }
 
@@ -580,12 +615,60 @@ async function confirmDelete() {
             <template v-if="formData.type === 'wopi'">
               <div>
                 <label class="text-sm font-medium mb-1 block">{{ t('fileApp.wopiDiscoveryUrl') }}</label>
-                <UInput
-                  v-model="formData.wopi_discovery_url"
-                  :placeholder="t('fileApp.wopiDiscoveryUrlPlaceholder')"
-                  class="w-full"
-                />
+                <div class="flex gap-2">
+                  <UInput
+                    v-model="formData.wopi_discovery_url"
+                    :placeholder="t('fileApp.wopiDiscoveryUrlPlaceholder')"
+                    class="flex-1"
+                  />
+                  <UTooltip
+                    v-if="isEditing"
+                    :text="!formData.wopi_discovery_url.trim() ? t('fileApp.wopiDiscoveryUrlPlaceholder') : t('fileApp.wopiDiscoverHint')"
+                  >
+                    <UButton
+                      icon="i-lucide-radar"
+                      :label="t('fileApp.wopiDiscover')"
+                      color="neutral"
+                      variant="outline"
+                      :loading="discovering"
+                      :disabled="!formData.wopi_discovery_url.trim()"
+                      @click="discoverWopi"
+                    />
+                  </UTooltip>
+                  <UButton
+                    v-if="!isEditing && formData.wopi_discovery_url.trim()"
+                    :label="t('fileApp.wopiDiscoverNeedSave')"
+                    color="neutral"
+                    variant="ghost"
+                    size="xs"
+                    disabled
+                  />
+                </div>
               </div>
+
+              <!-- Discovery Result -->
+              <div
+                v-if="discoveryResult"
+                class="rounded-lg border border-default bg-elevated/50 p-3 space-y-2"
+              >
+                <div class="flex items-center gap-2 text-sm font-medium text-success">
+                  <UIcon
+                    name="i-lucide-check-circle"
+                    class="size-4"
+                  />
+                  {{ t('fileApp.wopiDiscoverSuccess') }}
+                </div>
+                <p
+                  v-if="discoveryResult.app_names.length"
+                  class="text-sm text-muted"
+                >
+                  {{ t('fileApp.wopiDiscoverApps', { names: discoveryResult.app_names.join(', ') }) }}
+                </p>
+                <p class="text-sm text-muted">
+                  {{ t('fileApp.wopiDiscoverCount', { count: discoveryResult.applied_count }) }}
+                </p>
+              </div>
+
               <div>
                 <label class="text-sm font-medium mb-1 block">{{ t('fileApp.wopiEditorUrlTemplate') }}</label>
                 <UInput
@@ -593,6 +676,9 @@ async function confirmDelete() {
                   :placeholder="t('fileApp.wopiEditorUrlTemplatePlaceholder')"
                   class="w-full"
                 />
+                <p class="text-xs text-muted mt-1">
+                  {{ t('fileApp.wopiEditorUrlTemplateHint') }}
+                </p>
               </div>
             </template>
           </div>

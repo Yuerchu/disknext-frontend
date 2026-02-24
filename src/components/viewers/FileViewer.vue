@@ -168,8 +168,10 @@ watch(viewerOpen, (open) => {
 
       <!-- WOPI viewer -->
       <WopiViewer
-        v-else-if="viewerState?.viewer.type === 'wopi' && viewerState.contentUrl"
+        v-else-if="viewerState?.viewer.type === 'wopi' && viewerState.contentUrl && viewerState.wopiAccessToken != null"
         :src="viewerState.contentUrl"
+        :access-token="viewerState.wopiAccessToken"
+        :access-token-ttl="viewerState.wopiAccessTokenTtl!"
       />
     </template>
   </UModal>

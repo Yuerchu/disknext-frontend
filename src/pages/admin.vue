@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { setLocale } from '../i18n'
-import type { NavigationMenuItem, DropdownMenuItem } from '@nuxt/ui'
+import type { NavigationMenuItem, DropdownMenuItem, CommandPaletteItem, CommandPaletteGroup } from '@nuxt/ui'
 import { useUserStore } from '../stores/user'
 import { useAuthStore } from '../stores/auth'
 
@@ -11,6 +11,53 @@ const router = useRouter()
 const user = useUserStore()
 const auth = useAuthStore()
 const { t } = useI18n()
+
+const searchGroups = computed<CommandPaletteGroup<CommandPaletteItem>[]>(() => [
+  {
+    id: 'settings',
+    label: t('search.adminSettings'),
+    items: [
+      { label: t('admin.siteInfo'), icon: 'i-lucide-globe', onSelect() { router.push('/admin/settings/site') } },
+      { label: t('admin.userSession'), icon: 'i-lucide-key', onSelect() { router.push('/admin/settings/session') } },
+      { label: t('admin.captcha'), icon: 'i-lucide-shield-check', onSelect() { router.push('/admin/settings/captcha') } },
+      { label: t('admin.media'), icon: 'i-lucide-image', onSelect() { router.push('/admin/settings/media') } },
+      { label: t('admin.vas'), icon: 'i-lucide-gem', onSelect() { router.push('/admin/settings/vas') } },
+      { label: t('admin.mail'), icon: 'i-lucide-mail', onSelect() { router.push('/admin/settings/mail') } },
+      { label: t('admin.queue'), icon: 'i-lucide-list-ordered', onSelect() { router.push('/admin/settings/queue') } },
+      { label: t('admin.appearance'), icon: 'i-lucide-palette', onSelect() { router.push('/admin/settings/appearance') } },
+      { label: `${t('admin.events')} (${t('admin.settings')})`, icon: 'i-lucide-zap', onSelect() { router.push('/admin/settings/events') } },
+      { label: t('admin.server'), icon: 'i-lucide-server', onSelect() { router.push('/admin/settings/server') } }
+    ]
+  },
+  {
+    id: 'filesystem',
+    label: t('search.adminFilesystem'),
+    items: [
+      { label: t('admin.fsSettings'), icon: 'i-lucide-settings', onSelect() { router.push('/admin/fs/settings') } },
+      { label: t('admin.fsIcons'), icon: 'i-lucide-image', onSelect() { router.push('/admin/fs/icons') } },
+      { label: t('admin.fsViewers'), icon: 'i-lucide-eye', onSelect() { router.push('/admin/fs/viewers') } },
+      { label: t('admin.fsProperties'), icon: 'i-lucide-list', onSelect() { router.push('/admin/fs/properties') } }
+    ]
+  },
+  {
+    id: 'management',
+    label: t('search.adminManagement'),
+    items: [
+      { label: t('admin.policies'), icon: 'i-lucide-database', onSelect() { router.push('/admin/policies') } },
+      { label: t('admin.nodes'), icon: 'i-lucide-server', onSelect() { router.push('/admin/nodes') } },
+      { label: t('admin.groups'), icon: 'i-lucide-users', onSelect() { router.push('/admin/groups') } },
+      { label: t('admin.users'), icon: 'i-lucide-user', onSelect() { router.push('/admin/users') } },
+      { label: t('admin.files'), icon: 'i-lucide-file', onSelect() { router.push('/admin/files') } },
+      { label: t('admin.fileBlobs'), icon: 'i-lucide-binary', onSelect() { router.push('/admin/blobs') } },
+      { label: t('admin.shares'), icon: 'i-lucide-share-2', onSelect() { router.push('/admin/shares') } },
+      { label: t('admin.tasks'), icon: 'i-lucide-list-checks', onSelect() { router.push('/admin/tasks') } },
+      { label: t('admin.orders'), icon: 'i-lucide-receipt', onSelect() { router.push('/admin/orders') } },
+      { label: t('admin.events'), icon: 'i-lucide-bell', onSelect() { router.push('/admin/events') } },
+      { label: t('admin.reports'), icon: 'i-lucide-flag', onSelect() { router.push('/admin/reports') } },
+      { label: t('admin.oauth'), icon: 'i-lucide-key', onSelect() { router.push('/admin/oauth') } }
+    ]
+  }
+])
 
 const userMenuItems = computed<DropdownMenuItem[][]>(() => [
   [
@@ -193,6 +240,8 @@ const items = computed<NavigationMenuItem[][]>(() => [
       </template>
 
       <template #default="{ collapsed }">
+        <UDashboardSearchButton :collapsed="collapsed" />
+
         <UNavigationMenu
           :collapsed="collapsed"
           :items="items[0]"
@@ -212,6 +261,12 @@ const items = computed<NavigationMenuItem[][]>(() => [
         />
       </template>
     </UDashboardSidebar>
+
+    <UDashboardSearch
+      :placeholder="t('search.settings')"
+      :groups="searchGroups"
+      :color-mode="false"
+    />
 
     <UDashboardPanel>
       <template #header>

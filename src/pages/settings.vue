@@ -622,6 +622,7 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
     <UModal
       v-model:open="tfaSetupModalOpen"
       :title="t('settings.twoFactorSetupTitle')"
+      description=" "
       :dismissible="!tfaEnabling"
       :ui="{ footer: 'justify-end' }"
     >
@@ -701,6 +702,7 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
     <UModal
       v-model:open="tfaDisableModalOpen"
       :title="t('settings.twoFactorDisableTitle')"
+      description=" "
       :dismissible="!tfaDisabling"
       :ui="{ footer: 'justify-end' }"
     >
@@ -730,6 +732,7 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
     <UModal
       v-model:open="passwordModalOpen"
       :title="t('settings.changePassword')"
+      description=" "
       :dismissible="!savingPassword"
       :ui="{ footer: 'justify-end' }"
     >

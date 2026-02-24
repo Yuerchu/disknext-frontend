@@ -541,6 +541,7 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
   <UModal
     v-model:open="deleteConfirmOpen"
     :title="t('trash.deleteConfirmTitle')"
+    description=" "
     :ui="{ footer: 'justify-end' }"
   >
     <template #body>
@@ -573,6 +574,7 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
   <UModal
     v-model:open="emptyTrashOpen"
     :title="t('trash.emptyTrashTitle')"
+    description=" "
     :ui="{ footer: 'justify-end' }"
   >
     <template #body>

@@ -108,6 +108,8 @@ const adminItems = computed<NavigationMenuItem[]>(() => [
     </template>
 
     <template #default="{ collapsed }">
+      <UDashboardSearchButton :collapsed="collapsed" />
+
       <UNavigationMenu
         :collapsed="collapsed"
         :items="items[0]"

@@ -131,6 +131,25 @@ interface DirectoryResponse {
   }
 }
 
+interface ObjectPropertyDetail {
+  id: string
+  name: string
+  type: 'file' | 'folder'
+  size: number
+  mime_type: string | null
+  created_at: string
+  updated_at: string
+  parent_id: string | null
+  checksum_md5: string | null
+  checksum_sha256: string | null
+  share_count: number
+  total_views: number
+  total_downloads: number
+  policy_name: string | null
+  reference_count: number
+  metadatas: Record<string, unknown>
+}
+
 interface PolicySummary {
   id: string
   name: string
@@ -444,7 +463,7 @@ function getFolderItems(obj: FileObject): ContextMenuItem[][] {
       { label: t('contextMenu.moveTo'), icon: 'i-lucide-move', onSelect() { openMoveTo(obj) } }
     ],
     [
-      { label: t('common.details'), icon: 'i-lucide-info' },
+      { label: t('common.details'), icon: 'i-lucide-info', onSelect() { openPropertyModal(obj) } },
       { label: t('policySwitch.title'), icon: 'i-lucide-database', onSelect() { openPolicySwitchModal(obj) } }
     ],
     [
@@ -485,7 +504,7 @@ function getFileItems(obj: FileObject): ContextMenuItem[][] {
       { label: t('contextMenu.getDirectLink'), icon: 'i-lucide-link' }
     ],
     [
-      { label: t('common.details'), icon: 'i-lucide-info' },
+      { label: t('common.details'), icon: 'i-lucide-info', onSelect() { openPropertyModal(obj) } },
       { label: t('policySwitch.title'), icon: 'i-lucide-database', onSelect() { openPolicySwitchModal(obj) } }
     ],
     [
@@ -776,6 +795,26 @@ async function confirmPolicySwitch() {
     showApiError(e as AxiosError<ApiErrorResponse>, t('policySwitch.failed'))
   } finally {
     policySwitchSubmitting.value = false
+  }
+}
+
+// Property detail modal
+const propertyModalOpen = ref(false)
+const propertyLoading = ref(false)
+const propertyDetail = ref<ObjectPropertyDetail | null>(null)
+
+async function openPropertyModal(obj: FileObject) {
+  propertyDetail.value = null
+  propertyModalOpen.value = true
+  propertyLoading.value = true
+  try {
+    const { data } = await api.get<ObjectPropertyDetail>(`/api/v1/object/property/${obj.id}/detail`)
+    propertyDetail.value = data
+  } catch (e: unknown) {
+    showApiError(e as AxiosError<ApiErrorResponse>, t('errors.fetchFailed'))
+    propertyModalOpen.value = false
+  } finally {
+    propertyLoading.value = false
   }
 }
 
@@ -1355,6 +1394,11 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
 <template>
   <UDashboardGroup>
     <AppSidebar />
+
+    <UDashboardSearch
+      :placeholder="t('search.files')"
+      :color-mode="false"
+    />
 
     <UDashboardPanel :ui="{ root: 'overflow-y-auto', body: '!overflow-y-visible !p-0 !gap-0' }">
       <template #header>
@@ -1964,6 +2008,136 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
     </template>
   </UModal>
 
+  <!-- Property Detail Modal -->
+  <UModal
+    v-model:open="propertyModalOpen"
+    :title="t('propertyModal.title')"
+    description=" "
+    :ui="{ footer: 'justify-end', content: 'sm:max-w-lg', description: 'hidden' }"
+  >
+    <template #body>
+      <div
+        v-if="propertyLoading"
+        class="flex justify-center py-8"
+      >
+        <UIcon
+          name="i-lucide-loader-2"
+          class="size-6 animate-spin text-muted"
+        />
+      </div>
+      <div
+        v-else-if="propertyDetail"
+        class="space-y-3 text-sm"
+      >
+        <div class="text-xs font-medium text-muted uppercase tracking-wide">
+          {{ t('propertyModal.basicInfo') }}
+        </div>
+        <div class="flex justify-between">
+          <span class="text-muted">{{ t('propertyModal.name') }}</span>
+          <span class="text-right break-all max-w-[60%]">{{ propertyDetail.name }}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-muted">{{ t('propertyModal.type') }}</span>
+          <span>{{ propertyDetail.type === 'file' ? t('propertyModal.typeFile') : t('propertyModal.typeFolder') }}</span>
+        </div>
+        <div
+          v-if="propertyDetail.type === 'file'"
+          class="flex justify-between"
+        >
+          <span class="text-muted">{{ t('propertyModal.size') }}</span>
+          <span>{{ formatSize(propertyDetail.size) }}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-muted">{{ t('propertyModal.createdAt') }}</span>
+          <span>{{ formatDate(propertyDetail.created_at) }}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-muted">{{ t('propertyModal.updatedAt') }}</span>
+          <span>{{ formatDate(propertyDetail.updated_at) }}</span>
+        </div>
+
+        <template v-if="propertyDetail.type === 'file'">
+          <USeparator />
+          <div class="text-xs font-medium text-muted uppercase tracking-wide">
+            {{ t('propertyModal.detailInfo') }}
+          </div>
+          <div
+            v-if="propertyDetail.mime_type"
+            class="flex justify-between"
+          >
+            <span class="text-muted">{{ t('propertyModal.mimeType') }}</span>
+            <span class="font-mono text-xs">{{ propertyDetail.mime_type }}</span>
+          </div>
+          <div
+            v-if="propertyDetail.checksum_md5"
+            class="flex justify-between"
+          >
+            <span class="text-muted">{{ t('propertyModal.checksumMd5') }}</span>
+            <span class="font-mono text-xs break-all">{{ propertyDetail.checksum_md5 }}</span>
+          </div>
+          <div
+            v-if="propertyDetail.checksum_sha256"
+            class="flex justify-between"
+          >
+            <span class="text-muted">{{ t('propertyModal.checksumSha256') }}</span>
+            <span class="font-mono text-xs break-all">{{ propertyDetail.checksum_sha256 }}</span>
+          </div>
+          <div
+            v-if="propertyDetail.policy_name"
+            class="flex justify-between"
+          >
+            <span class="text-muted">{{ t('propertyModal.policyName') }}</span>
+            <span>{{ propertyDetail.policy_name }}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-muted">{{ t('propertyModal.referenceCount') }}</span>
+            <span>{{ propertyDetail.reference_count }}</span>
+          </div>
+        </template>
+
+        <template v-if="propertyDetail.metadatas && Object.keys(propertyDetail.metadatas).length > 0">
+          <USeparator />
+          <div class="text-xs font-medium text-muted uppercase tracking-wide">
+            {{ t('propertyModal.metadata') }}
+          </div>
+          <div
+            v-for="(value, key) in propertyDetail.metadatas"
+            :key="String(key)"
+            class="flex justify-between"
+          >
+            <span class="text-muted">{{ key }}</span>
+            <span class="text-right break-all max-w-[60%]">{{ value }}</span>
+          </div>
+        </template>
+
+        <USeparator />
+        <div class="text-xs font-medium text-muted uppercase tracking-wide">
+          {{ t('propertyModal.statistics') }}
+        </div>
+        <div class="flex justify-between">
+          <span class="text-muted">{{ t('propertyModal.shareCount') }}</span>
+          <span>{{ propertyDetail.share_count }}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-muted">{{ t('propertyModal.totalViews') }}</span>
+          <span>{{ propertyDetail.total_views }}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-muted">{{ t('propertyModal.totalDownloads') }}</span>
+          <span>{{ propertyDetail.total_downloads }}</span>
+        </div>
+      </div>
+    </template>
+    <template #footer>
+      <UButton
+        :label="t('common.cancel')"
+        color="neutral"
+        variant="outline"
+        @click="propertyModalOpen = false"
+      />
+    </template>
+  </UModal>
+
   <ObjectPicker
     v-model:open="pickerOpen"
     :title="pickerMode === 'copy' ? t('objectPicker.copyTitle') : t('objectPicker.moveTitle')"
@@ -1994,88 +2168,88 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
     :modal="false"
     :handle="false"
     :title="t('upload.tasks')"
+    description=" "
     :ui="{ content: 'min-w-96 w-[28rem]' }"
   >
-    <template #header>
-      <div class="flex items-center justify-between w-full">
-        <span class="font-semibold text-sm">{{ t('upload.tasks') }}</span>
-        <UButton
-          icon="i-lucide-x"
-          color="neutral"
-          variant="ghost"
-          size="xs"
-          @click="upload.drawerOpen = false"
-        />
-      </div>
-    </template>
-    <template #body>
-      <div class="space-y-3 max-h-64 overflow-y-auto">
-        <div
-          v-for="task in upload.tasks"
-          :key="task.id"
-          class="space-y-1"
-        >
-          <div class="flex items-center gap-2">
-            <UIcon
-              :name="taskIcon(task)"
-              :class="taskIconColor(task)"
-              class="size-4 shrink-0"
-            />
-            <span class="text-sm truncate flex-1">{{ task.fileName }}</span>
-            <UButton
-              v-if="task.status === 'uploading'"
-              icon="i-lucide-x"
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              @click="upload.cancelTask(task.id)"
-            />
-          </div>
-          <template v-if="task.status === 'uploading'">
-            <UProgress
-              :model-value="taskPercent(task)"
-              size="xs"
-            />
-            <div class="flex items-center justify-between text-xs text-muted">
-              <span>{{ formatSize(task.bytesUploaded) }} / {{ formatSize(task.fileSize) }}</span>
-              <span>{{ taskPercent(task) }}% · {{ formatSpeed(task.speed) }}</span>
+    <template #content>
+      <div class="w-full flex flex-col gap-4 p-4 overflow-y-auto">
+        <div class="flex items-center justify-between">
+          <span class="text-highlighted font-semibold text-sm">{{ t('upload.tasks') }}</span>
+          <UButton
+            icon="i-lucide-x"
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            @click="upload.drawerOpen = false"
+          />
+        </div>
+
+        <div class="flex-1 space-y-3 max-h-64 overflow-y-auto">
+          <div
+            v-for="task in upload.tasks"
+            :key="task.id"
+            class="space-y-1"
+          >
+            <div class="flex items-center gap-2">
+              <UIcon
+                :name="taskIcon(task)"
+                :class="taskIconColor(task)"
+                class="size-4 shrink-0"
+              />
+              <span class="text-sm truncate flex-1">{{ task.fileName }}</span>
+              <UButton
+                v-if="task.status === 'uploading'"
+                icon="i-lucide-x"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                @click="upload.cancelTask(task.id)"
+              />
             </div>
-          </template>
-          <div
-            v-else-if="task.status === 'completed'"
-            class="text-xs text-success"
-          >
-            {{ t('upload.completed') }} · {{ formatSize(task.fileSize) }}
-          </div>
-          <div
-            v-else-if="task.status === 'failed'"
-            class="text-xs text-error"
-          >
-            {{ task.error }}
-          </div>
-          <div
-            v-else-if="task.status === 'cancelled'"
-            class="text-xs text-muted"
-          >
-            {{ t('upload.cancelled') }}
+            <template v-if="task.status === 'uploading'">
+              <UProgress
+                :model-value="taskPercent(task)"
+                size="xs"
+              />
+              <div class="flex items-center justify-between text-xs text-muted">
+                <span>{{ formatSize(task.bytesUploaded) }} / {{ formatSize(task.fileSize) }}</span>
+                <span>{{ taskPercent(task) }}% · {{ formatSpeed(task.speed) }}</span>
+              </div>
+            </template>
+            <div
+              v-else-if="task.status === 'completed'"
+              class="text-xs text-success"
+            >
+              {{ t('upload.completed') }} · {{ formatSize(task.fileSize) }}
+            </div>
+            <div
+              v-else-if="task.status === 'failed'"
+              class="text-xs text-error"
+            >
+              {{ task.error }}
+            </div>
+            <div
+              v-else-if="task.status === 'cancelled'"
+              class="text-xs text-muted"
+            >
+              {{ t('upload.cancelled') }}
+            </div>
           </div>
         </div>
-      </div>
-    </template>
 
-    <template #footer>
-      <div class="flex items-center justify-between">
-        <span class="text-xs text-muted">
-          {{ t('upload.tasksInProgress', { n: upload.activeTasks.length }) }}
-        </span>
-        <UButton
-          v-if="!upload.hasActiveTasks"
-          :label="t('upload.clearCompleted')"
-          color="neutral"
-          variant="ghost"
-          size="xs"
-          @click="upload.clearAll()"
-        />
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-muted">
+            {{ t('upload.tasksInProgress', { n: upload.activeTasks.length }) }}
+          </span>
+          <UButton
+            v-if="!upload.hasActiveTasks"
+            :label="t('upload.clearCompleted')"
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            @click="upload.clearAll()"
+          />
+        </div>
       </div>
     </template>
   </UDrawer>
