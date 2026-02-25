@@ -8,6 +8,7 @@ import api from '../../utils/api'
 
 type ApiErrorResponse = { detail?: string }
 
+const UAvatar = resolveComponent('UAvatar')
 const UBadge = resolveComponent('UBadge')
 const UDropdownMenu = resolveComponent('UDropdownMenu')
 
@@ -170,7 +171,15 @@ const columns = computed<TableColumn<AdminFile>[]>(() => [
   },
   {
     accessorKey: 'owner_email',
-    header: t('adminFile.owner')
+    header: t('adminFile.owner'),
+    cell: ({ row }) => {
+      const email = row.original.owner_email
+      if (!email) return '-'
+      return h('div', { class: 'flex items-center gap-2' }, [
+        h(UAvatar, { src: `/api/v1/user/avatar/${row.original.owner_id}/48`, alt: email, size: 'xs' }),
+        h('span', { class: 'truncate' }, email)
+      ])
+    }
   },
   {
     accessorKey: 'policy_name',

@@ -17,8 +17,8 @@ const toast = useToast()
 
 interface AdminTaskItem {
   id: number
-  type: string
-  status: string
+  type: 'policy_migrate'
+  status: 'queued' | 'running' | 'completed' | 'error'
   progress: number
   error: string | null
   user_id: string
@@ -34,8 +34,8 @@ interface AdminTaskListResponse {
 
 interface AdminTaskDetail {
   id: number
-  status: number
-  type: number
+  status: 'queued' | 'running' | 'completed' | 'error'
+  type: 'policy_migrate'
   progress: number
   error: string | null
   user_id: string
@@ -63,10 +63,9 @@ const orderOptions = [
 const statusOptions = [
   { label: t('adminTask.filterAll'), value: 'all' },
   { label: t('adminTask.statusQueued'), value: 'queued' },
-  { label: t('adminTask.statusProcessing'), value: 'processing' },
+  { label: t('adminTask.statusProcessing'), value: 'running' },
   { label: t('adminTask.statusCompleted'), value: 'completed' },
-  { label: t('adminTask.statusFailed'), value: 'failed' },
-  { label: t('adminTask.statusCancelled'), value: 'cancelled' }
+  { label: t('adminTask.statusFailed'), value: 'error' }
 ]
 
 // Delete modal
@@ -93,10 +92,9 @@ function formatDate(iso: string): string {
 function getStatusColor(status: string): string {
   const map: Record<string, string> = {
     queued: 'neutral',
-    processing: 'info',
+    running: 'info',
     completed: 'success',
-    failed: 'error',
-    cancelled: 'warning'
+    error: 'error'
   }
   return map[status] || 'neutral'
 }
@@ -104,10 +102,9 @@ function getStatusColor(status: string): string {
 function getStatusLabel(status: string): string {
   const map: Record<string, string> = {
     queued: t('adminTask.statusQueued'),
-    processing: t('adminTask.statusProcessing'),
+    running: t('adminTask.statusProcessing'),
     completed: t('adminTask.statusCompleted'),
-    failed: t('adminTask.statusFailed'),
-    cancelled: t('adminTask.statusCancelled')
+    error: t('adminTask.statusFailed')
   }
   return map[status] || status
 }
@@ -264,7 +261,7 @@ const columns = computed<TableColumn<AdminTaskItem>[]>(() => [
       const name = row.original.username
       if (!name) return '-'
       return h('div', { class: 'flex items-center gap-2' }, [
-        h(UAvatar, { alt: name, size: 'xs' }),
+        h(UAvatar, { src: row.original.user_id ? `/api/v1/user/avatar/${row.original.user_id}/48` : undefined, alt: name, size: 'xs' }),
         h('span', { class: 'truncate' }, name)
       ])
     }

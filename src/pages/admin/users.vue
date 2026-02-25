@@ -25,7 +25,6 @@ interface User {
   group_expires: string | null
   group_id: string
   group_name: string
-  two_factor: string
   created_at: string
   updated_at: string
 }
@@ -60,10 +59,10 @@ const groupFormItems = computed(() =>
 
 async function fetchGroupList() {
   try {
-    const { data } = await api.get<{ count: number; items: SimpleGroup[] }>('/api/v1/admin/group/', {
+    const { data } = await api.get<{ groups?: SimpleGroup[]; total?: number; items?: SimpleGroup[]; count?: number }>('/api/v1/admin/group/', {
       params: { offset: 0, limit: 100 }
     })
-    groupList.value = data.items
+    groupList.value = data.groups ?? data.items ?? []
   } catch (e: unknown) {
     const err = e as AxiosError<ApiErrorResponse>
     toast.add({
@@ -201,7 +200,7 @@ const columns = computed<TableColumn<User>[]>(() => [
     header: t('adminUser.email'),
     cell: ({ row }) => {
       return h('div', { class: 'flex items-center gap-3' }, [
-        h(UAvatar, { alt: row.original.nickname || row.original.email, size: 'sm' }),
+        h(UAvatar, { src: `/api/v1/user/avatar/${row.original.id}/64`, alt: row.original.nickname || row.original.email, size: 'sm' }),
         h('div', { class: 'min-w-0' }, [
           h('div', { class: 'font-medium truncate' }, row.original.email),
           h('div', { class: 'text-xs text-muted truncate' }, row.original.nickname || '-')
@@ -268,8 +267,7 @@ const formData = ref({
   status: 'active' as string,
   score: 0,
   storage: 0,
-  group_expires: '',
-  two_factor: ''
+  group_expires: ''
 })
 
 const isEditing = computed(() => !!editingUser.value)
@@ -294,8 +292,7 @@ function resetForm() {
     status: 'active',
     score: 0,
     storage: 0,
-    group_expires: '',
-    two_factor: ''
+    group_expires: ''
   }
 }
 
@@ -315,8 +312,7 @@ function openEditModal(user: User) {
     status: user.status,
     score: user.score,
     storage: user.storage,
-    group_expires: user.group_expires ? user.group_expires.slice(0, 16) : '',
-    two_factor: user.two_factor
+    group_expires: user.group_expires ? user.group_expires.slice(0, 16) : ''
   }
   formModalOpen.value = true
 }
@@ -333,10 +329,8 @@ async function submitForm() {
         status: formData.value.status,
         score: formData.value.score,
         storage: formData.value.storage,
-        group_expires: formData.value.group_expires ? new Date(formData.value.group_expires).toISOString() : null,
-        two_factor: formData.value.two_factor
+        group_expires: formData.value.group_expires ? new Date(formData.value.group_expires).toISOString() : null
       }
-      if (formData.value.password) body.password = formData.value.password
       await api.patch(`/api/v1/admin/user/${editingUser.value!.id}`, body)
       toast.add({ title: t('adminUser.updateSuccess'), icon: 'i-lucide-check-circle', color: 'success' })
     } else {
@@ -363,10 +357,6 @@ async function submitForm() {
   } finally {
     submitting.value = false
   }
-}
-
-function clearTwoFactor() {
-  formData.value.two_factor = ''
 }
 
 // Delete Modal
@@ -553,12 +543,12 @@ async function calibrateUser(user: User) {
                   class="w-full"
                 />
               </div>
-              <div>
+              <div v-if="!isEditing">
                 <label class="text-sm font-medium mb-1 block">{{ t('adminUser.password') }}</label>
                 <UInput
                   v-model="formData.password"
                   type="password"
-                  :placeholder="isEditing ? t('adminUser.passwordEditHint') : t('adminUser.passwordPlaceholder')"
+                  :placeholder="t('adminUser.passwordPlaceholder')"
                   class="w-full"
                 />
               </div>
@@ -620,23 +610,6 @@ async function calibrateUser(user: User) {
                     v-model="formData.group_expires"
                     type="datetime-local"
                     class="w-full"
-                  />
-                </div>
-
-                <div class="flex items-center justify-between">
-                  <div>
-                    <label class="text-sm font-medium block">{{ t('adminUser.twoFactor') }}</label>
-                    <span class="text-xs text-muted">
-                      {{ formData.two_factor ? t('common.enabled') : t('common.disabled') }}
-                    </span>
-                  </div>
-                  <UButton
-                    v-if="formData.two_factor"
-                    :label="t('adminUser.clearTwoFactor')"
-                    color="error"
-                    variant="soft"
-                    size="xs"
-                    @click="clearTwoFactor"
                   />
                 </div>
               </template>

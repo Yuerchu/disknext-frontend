@@ -285,6 +285,7 @@ const items = computed<NavigationMenuItem[][]>(() => [
               :content="{ align: 'end' }"
             >
               <UAvatar
+                :src="user.avatarUrl(64)"
                 :alt="user.nickname"
                 size="sm"
               />

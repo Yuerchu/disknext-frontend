@@ -26,6 +26,7 @@ interface UserSettings {
   id: string
   email: string | null
   nickname: string
+  avatar: string
   created_at: string
   group_name: string
   group_expires: string | null
@@ -42,6 +43,25 @@ const savingNickname = ref(false)
 const nicknameChanged = computed(() =>
   settings.value ? settings.value.nickname !== originalNickname.value : false
 )
+
+// Avatar management state
+const avatarUploading = ref(false)
+const avatarSwitching = ref(false)
+const fileInputRef = ref<HTMLInputElement | null>(null)
+
+const avatarPreviewUrl = computed(() => {
+  if (!settings.value?.id) return ''
+  return `/api/v1/user/avatar/${settings.value.id}/128?t=${user.avatarVersion}`
+})
+
+const avatarModeLabel = computed(() => {
+  if (!settings.value) return ''
+  switch (settings.value.avatar) {
+    case 'file': return t('settings.avatarModeFile')
+    case 'gravatar': return t('settings.avatarModeGravatar')
+    default: return t('settings.avatarModeDefault')
+  }
+})
 
 const languageItems = [
   { label: '简体中文', value: 'zh-CN' },
@@ -62,6 +82,8 @@ async function fetchSettings() {
     const { data } = await api.get<UserSettings>('/api/v1/user/settings/')
     settings.value = data
     originalNickname.value = data.nickname
+    user.avatar = data.avatar ?? 'default'
+    if (!user.id && data.id) user.id = data.id
   } catch (e: unknown) {
     const err = e as AxiosError<{ detail?: string }>
     const message = err?.response?.data?.detail || t('settings.loadFailed')
@@ -90,6 +112,77 @@ async function saveNickname() {
     toast.add({ title: t('settings.saveFailed'), description: err?.response?.data?.detail || '', icon: 'i-lucide-circle-x', color: 'error' })
   } finally {
     savingNickname.value = false
+  }
+}
+
+function triggerAvatarUpload() {
+  fileInputRef.value?.click()
+}
+
+async function onAvatarFileSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
+    toast.add({ title: t('settings.avatarInvalidType'), icon: 'i-lucide-circle-x', color: 'error' })
+    input.value = ''
+    return
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    toast.add({ title: t('settings.avatarTooLarge'), icon: 'i-lucide-circle-x', color: 'error' })
+    input.value = ''
+    return
+  }
+
+  avatarUploading.value = true
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    await api.post('/api/v1/user/settings/avatar', formData)
+    if (settings.value) settings.value.avatar = 'file'
+    user.avatar = 'file'
+    user.refreshAvatar()
+    toast.add({ title: t('settings.avatarUploadSuccess'), icon: 'i-lucide-check-circle', color: 'success' })
+  } catch (e: unknown) {
+    const err = e as AxiosError<{ detail?: string }>
+    toast.add({ title: t('settings.avatarUploadFailed'), description: err?.response?.data?.detail || '', icon: 'i-lucide-circle-x', color: 'error' })
+  } finally {
+    avatarUploading.value = false
+    input.value = ''
+  }
+}
+
+async function switchToGravatar() {
+  avatarSwitching.value = true
+  try {
+    await api.put('/api/v1/user/settings/avatar')
+    if (settings.value) settings.value.avatar = 'gravatar'
+    user.avatar = 'gravatar'
+    user.refreshAvatar()
+    toast.add({ title: t('settings.avatarGravatarSuccess'), icon: 'i-lucide-check-circle', color: 'success' })
+  } catch (e: unknown) {
+    const err = e as AxiosError<{ detail?: string }>
+    toast.add({ title: t('settings.saveFailed'), description: err?.response?.data?.detail || '', icon: 'i-lucide-circle-x', color: 'error' })
+  } finally {
+    avatarSwitching.value = false
+  }
+}
+
+async function resetAvatar() {
+  avatarSwitching.value = true
+  try {
+    await api.delete('/api/v1/user/settings/avatar')
+    if (settings.value) settings.value.avatar = 'default'
+    user.avatar = 'default'
+    user.refreshAvatar()
+    toast.add({ title: t('settings.avatarResetSuccess'), icon: 'i-lucide-check-circle', color: 'success' })
+  } catch (e: unknown) {
+    const err = e as AxiosError<{ detail?: string }>
+    toast.add({ title: t('settings.saveFailed'), description: err?.response?.data?.detail || '', icon: 'i-lucide-circle-x', color: 'error' })
+  } finally {
+    avatarSwitching.value = false
   }
 }
 
@@ -403,6 +496,7 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
               :content="{ align: 'end' }"
             >
               <UAvatar
+                :src="user.avatarUrl(64)"
                 :alt="user.nickname"
                 size="sm"
               />
@@ -432,6 +526,61 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
           >
             <template #profile>
               <div class="flex flex-col gap-4 pt-4">
+                <!-- Avatar section -->
+                <UFormField :label="t('settings.avatar')">
+                  <div class="flex items-center gap-4">
+                    <UAvatar
+                      :src="avatarPreviewUrl"
+                      :alt="user.nickname"
+                      size="xl"
+                    />
+                    <div class="flex flex-col gap-2">
+                      <span class="text-sm text-muted">{{ avatarModeLabel }}</span>
+                      <div class="flex flex-wrap gap-2">
+                        <UButton
+                          :label="t('settings.avatarUpload')"
+                          variant="outline"
+                          color="neutral"
+                          icon="i-lucide-upload"
+                          size="sm"
+                          :loading="avatarUploading"
+                          :disabled="avatarSwitching"
+                          @click="triggerAvatarUpload"
+                        />
+                        <UButton
+                          :label="t('settings.avatarGravatar')"
+                          variant="outline"
+                          color="neutral"
+                          icon="i-lucide-globe"
+                          size="sm"
+                          :loading="avatarSwitching"
+                          :disabled="avatarUploading || settings?.avatar === 'gravatar'"
+                          @click="switchToGravatar"
+                        />
+                        <UButton
+                          :label="t('settings.avatarReset')"
+                          variant="outline"
+                          color="neutral"
+                          icon="i-lucide-rotate-ccw"
+                          size="sm"
+                          :loading="avatarSwitching"
+                          :disabled="avatarUploading || settings?.avatar === 'default'"
+                          @click="resetAvatar"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <input
+                    ref="fileInputRef"
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
+                    class="hidden"
+                    @change="onAvatarFileSelected"
+                  >
+                </UFormField>
+
+                <USeparator />
+
                 <UFormField :label="t('settings.email')">
                   <UInput
                     :model-value="settings.email ?? ''"
