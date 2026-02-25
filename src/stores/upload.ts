@@ -20,36 +20,88 @@ export interface UploadTask {
   totalChunks: number
   uploadedChunks: number
   bytesUploaded: number
-  speed: number // bytes per second
+  speed: number // bytes per second (instantaneous)
   startTime: number
   lastSpeedUpdate: number
   lastBytesForSpeed: number
-  status: 'uploading' | 'completed' | 'failed' | 'cancelled'
+  status: 'queued' | 'uploading' | 'completed' | 'failed' | 'cancelled'
   error: string
+  parentId: string
+  policyId: string
 }
 
-interface UploadState {
+type SpeedMode = 'instant' | 'average'
+type SortOrder = 'newest' | 'oldest'
+
+interface UploadSettings {
+  hideCompleted: boolean
+  sortOrder: SortOrder
+  speedMode: SpeedMode
+  maxConcurrent: number
+}
+
+interface UploadState extends UploadSettings {
   tasks: UploadTask[]
   drawerOpen: boolean
+}
+
+const SETTINGS_KEY = 'disknext-upload-settings'
+
+function loadSettings(): Partial<UploadSettings> {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch { /* ignore */ }
+  return {}
+}
+
+function saveSettings(state: UploadState) {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+    hideCompleted: state.hideCompleted,
+    sortOrder: state.sortOrder,
+    speedMode: state.speedMode,
+    maxConcurrent: state.maxConcurrent,
+  }))
 }
 
 let taskCounter = 0
 
 export const useUploadStore = defineStore('upload', {
-  state: (): UploadState => ({
-    tasks: [],
-    drawerOpen: false
-  }),
-
-  getters: {
-    activeTasks: (state) => state.tasks.filter(t => t.status === 'uploading'),
-    hasActiveTasks(): boolean {
-      return this.activeTasks.length > 0
+  state: (): UploadState => {
+    const saved = loadSettings()
+    return {
+      tasks: [],
+      drawerOpen: false,
+      hideCompleted: saved.hideCompleted ?? false,
+      sortOrder: saved.sortOrder ?? 'oldest',
+      speedMode: saved.speedMode ?? 'instant',
+      maxConcurrent: saved.maxConcurrent ?? 3,
     }
   },
 
+  getters: {
+    activeTasks: (state) => state.tasks.filter(t => t.status === 'uploading' || t.status === 'queued'),
+    hasActiveTasks(): boolean {
+      return this.activeTasks.length > 0
+    },
+    failedTasks: (state) => state.tasks.filter(t => t.status === 'failed'),
+    hasFailedTasks(): boolean {
+      return this.failedTasks.length > 0
+    },
+    displayTasks(state): UploadTask[] {
+      let list = state.tasks
+      if (state.hideCompleted) {
+        list = list.filter(t => t.status === 'uploading' || t.status === 'queued' || t.status === 'failed')
+      }
+      if (state.sortOrder === 'newest') {
+        return [...list].reverse()
+      }
+      return list
+    },
+  },
+
   actions: {
-    addTask(file: File, session: UploadSession) {
+    addTask(file: File, session: UploadSession, parentId: string, policyId: string) {
       const now = Date.now()
       const task: UploadTask = {
         id: `upload-${++taskCounter}`,
@@ -65,12 +117,30 @@ export const useUploadStore = defineStore('upload', {
         startTime: now,
         lastSpeedUpdate: now,
         lastBytesForSpeed: 0,
-        status: 'uploading',
-        error: ''
+        status: 'queued',
+        error: '',
+        parentId,
+        policyId,
       }
       this.tasks.push(task)
       this.drawerOpen = true
-      this.processChunks(task.id)
+      this.tryProcessNext()
+    },
+
+    tryProcessNext() {
+      const uploadingCount = this.tasks.filter(t => t.status === 'uploading').length
+      const queued = this.tasks.filter(t => t.status === 'queued')
+      const slots = this.maxConcurrent - uploadingCount
+
+      for (let i = 0; i < Math.min(slots, queued.length); i++) {
+        const task = queued[i]
+        task.status = 'uploading'
+        const now = Date.now()
+        task.startTime = now
+        task.lastSpeedUpdate = now
+        task.lastBytesForSpeed = 0
+        this.processChunks(task.id)
+      }
     },
 
     async processChunks(taskId: string) {
@@ -96,7 +166,6 @@ export const useUploadStore = defineStore('upload', {
           task.uploadedChunks = result.uploaded_chunks
           task.bytesUploaded = Math.min(task.uploadedChunks * task.chunkSize, task.fileSize)
 
-          // Update speed (recalculate every 500ms to smooth out fluctuations)
           const now = Date.now()
           const elapsed = now - task.lastSpeedUpdate
           if (elapsed >= 500) {
@@ -119,6 +188,8 @@ export const useUploadStore = defineStore('upload', {
           const err = e as AxiosError<{ detail?: string }>
           task.error = err?.response?.data?.detail || i18n.global.t('upload.failed')
         }
+      } finally {
+        this.tryProcessNext()
       }
     },
 
@@ -135,10 +206,55 @@ export const useUploadStore = defineStore('upload', {
           // ignore cleanup errors
         }
       }
+
+      this.tryProcessNext()
+    },
+
+    async retryTask(taskId: string) {
+      const task = this.tasks.find(t => t.id === taskId)
+      if (!task || task.status !== 'failed') return
+
+      try {
+        const { data: session } = await api.put<UploadSession>('/api/v1/file/upload/', {
+          file_name: task.fileName,
+          file_size: task.fileSize,
+          parent_id: task.parentId,
+          policy_id: task.policyId,
+        })
+
+        task.sessionId = session.id
+        task.chunkSize = session.chunk_size
+        task.totalChunks = session.total_chunks
+        task.uploadedChunks = session.uploaded_chunks
+        task.bytesUploaded = 0
+        task.speed = 0
+        task.error = ''
+        task.status = 'queued'
+
+        const now = Date.now()
+        task.startTime = now
+        task.lastSpeedUpdate = now
+        task.lastBytesForSpeed = 0
+
+        this.tryProcessNext()
+      } catch (e: unknown) {
+        const err = e as AxiosError<{ detail?: string }>
+        task.error = err?.response?.data?.detail || i18n.global.t('upload.retryFailed')
+      }
+    },
+
+    async retryAllFailed() {
+      const failedIds = this.tasks
+        .filter(t => t.status === 'failed')
+        .map(t => t.id)
+
+      for (const id of failedIds) {
+        await this.retryTask(id)
+      }
     },
 
     clearAll() {
-      this.tasks = this.tasks.filter(t => t.status === 'uploading')
+      this.tasks = this.tasks.filter(t => t.status === 'uploading' || t.status === 'queued')
       if (this.tasks.length === 0) {
         this.drawerOpen = false
       }
@@ -149,6 +265,24 @@ export const useUploadStore = defineStore('upload', {
       if (this.tasks.length === 0) {
         this.drawerOpen = false
       }
-    }
+    },
+
+    setHideCompleted(val: boolean) {
+      this.hideCompleted = val
+      saveSettings(this.$state)
+    },
+    setSortOrder(val: SortOrder) {
+      this.sortOrder = val
+      saveSettings(this.$state)
+    },
+    setSpeedMode(val: SpeedMode) {
+      this.speedMode = val
+      saveSettings(this.$state)
+    },
+    setMaxConcurrent(n: number) {
+      this.maxConcurrent = Math.max(1, Math.min(20, n))
+      saveSettings(this.$state)
+      this.tryProcessNext()
+    },
   }
 })

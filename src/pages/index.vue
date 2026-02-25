@@ -944,10 +944,11 @@ async function createUploadSession(file: File, parentId?: string): Promise<Uploa
 }
 
 async function startUpload(files: FileList | File[]) {
+  if (!directory.value) return
   for (const file of Array.from(files)) {
     const session = await createUploadSession(file)
     if (session) {
-      upload.addTask(file, session)
+      upload.addTask(file, session, directory.value.id, directory.value.policy.id)
     }
   }
 }
@@ -1034,8 +1035,8 @@ async function uploadDirectoryTree(filesWithPaths: FileWithPath[]) {
     if (!parentId) continue
 
     const session = await createUploadSession(f.file, parentId)
-    if (session) {
-      upload.addTask(f.file, session)
+    if (session && directory.value) {
+      upload.addTask(f.file, session, parentId, directory.value.policy.id)
     }
   }
 }
@@ -1098,6 +1099,7 @@ async function onDrop(event: DragEvent) {
 
 function taskIcon(task: UploadTask): string {
   switch (task.status) {
+    case 'queued': return 'i-lucide-clock'
     case 'uploading': return 'i-lucide-upload'
     case 'completed': return 'i-lucide-check-circle'
     case 'failed': return 'i-lucide-circle-x'
@@ -1107,6 +1109,7 @@ function taskIcon(task: UploadTask): string {
 
 function taskIconColor(task: UploadTask): string {
   switch (task.status) {
+    case 'queued': return 'text-muted'
     case 'uploading': return 'text-primary'
     case 'completed': return 'text-success'
     case 'failed': return 'text-error'
@@ -1119,12 +1122,94 @@ function taskPercent(task: UploadTask): number {
   return Math.round(task.uploadedChunks / task.totalChunks * 100)
 }
 
+function getTaskSpeed(task: UploadTask): number {
+  if (upload.speedMode === 'average') {
+    const elapsed = (Date.now() - task.startTime) / 1000
+    return elapsed > 0 ? Math.round(task.bytesUploaded / elapsed) : 0
+  }
+  return task.speed
+}
+
 function formatSpeed(bytesPerSecond: number): string {
   if (bytesPerSecond <= 0) return t('upload.calculating')
   if (bytesPerSecond < 1024) return `${bytesPerSecond} B/s`
   if (bytesPerSecond < 1024 * 1024) return `${(bytesPerSecond / 1024).toFixed(1)} KB/s`
   return `${(bytesPerSecond / (1024 * 1024)).toFixed(1)} MB/s`
 }
+
+// Upload settings menu & parallel count dialog
+const parallelModalOpen = ref(false)
+const parallelCountInput = ref(3)
+
+function openParallelModal() {
+  parallelCountInput.value = upload.maxConcurrent
+  parallelModalOpen.value = true
+}
+
+function confirmParallelCount() {
+  upload.setMaxConcurrent(parallelCountInput.value)
+  parallelModalOpen.value = false
+}
+
+const uploadSettingsItems = computed<DropdownMenuItem[][]>(() => [
+  [
+    {
+      label: t('upload.hideCompleted'),
+      icon: 'i-lucide-eye-off',
+      type: 'checkbox' as const,
+      checked: upload.hideCompleted,
+      onUpdateChecked(checked: boolean) {
+        upload.setHideCompleted(checked)
+      },
+      onSelect(e: Event) { e.preventDefault() },
+    },
+  ],
+  [
+    {
+      label: t('upload.sortOrder'),
+      icon: 'i-lucide-arrow-up-down',
+      children: [
+        [
+          {
+            label: t('upload.sortOldest'),
+            icon: upload.sortOrder === 'oldest' ? 'i-lucide-check' : undefined,
+            onSelect() { upload.setSortOrder('oldest') },
+          },
+          {
+            label: t('upload.sortNewest'),
+            icon: upload.sortOrder === 'newest' ? 'i-lucide-check' : undefined,
+            onSelect() { upload.setSortOrder('newest') },
+          },
+        ],
+      ],
+    },
+    {
+      label: t('upload.speedDisplay'),
+      icon: 'i-lucide-gauge',
+      children: [
+        [
+          {
+            label: t('upload.speedInstant'),
+            icon: upload.speedMode === 'instant' ? 'i-lucide-check' : undefined,
+            onSelect() { upload.setSpeedMode('instant') },
+          },
+          {
+            label: t('upload.speedAverage'),
+            icon: upload.speedMode === 'average' ? 'i-lucide-check' : undefined,
+            onSelect() { upload.setSpeedMode('average') },
+          },
+        ],
+      ],
+    },
+  ],
+  [
+    {
+      label: t('upload.parallelCount', { n: upload.maxConcurrent }),
+      icon: 'i-lucide-layers',
+      onSelect() { openParallelModal() },
+    },
+  ],
+])
 
 // Watch for completed uploads to refresh directory
 watch(
@@ -1481,6 +1566,7 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
               :content="{ align: 'end' }"
             >
               <UAvatar
+                :src="user.avatarUrl(64)"
                 :alt="user.nickname"
                 size="sm"
               />
@@ -2161,88 +2247,167 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
     @change="onFolderSelected"
   >
 
-  <UDrawer
+  <USlideover
     v-model:open="upload.drawerOpen"
-    direction="right"
+    side="right"
     :inset="true"
     :modal="false"
-    :handle="false"
+    :dismissible="false"
     :title="t('upload.tasks')"
     description=" "
-    :ui="{ content: 'min-w-96 w-[28rem]' }"
+    :ui="{ content: 'sm:max-w-md w-[28rem]', description: 'sr-only' }"
   >
-    <template #content>
-      <div class="w-full flex flex-col gap-4 p-4 overflow-y-auto">
-        <div class="flex items-center justify-between">
-          <span class="text-highlighted font-semibold text-sm">{{ t('upload.tasks') }}</span>
-          <UButton
-            icon="i-lucide-x"
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            @click="upload.drawerOpen = false"
-          />
-        </div>
+    <template #title>
+      <span class="flex items-center gap-2">
+        {{ t('upload.tasks') }}
+        <UBadge
+          v-if="upload.activeTasks.length"
+          size="xs"
+          variant="subtle"
+        >
+          {{ upload.activeTasks.length }}
+        </UBadge>
+      </span>
+    </template>
 
-        <div class="flex-1 space-y-3 max-h-64 overflow-y-auto">
-          <div
-            v-for="task in upload.tasks"
-            :key="task.id"
-            class="space-y-1"
-          >
-            <div class="flex items-center gap-2">
-              <UIcon
-                :name="taskIcon(task)"
-                :class="taskIconColor(task)"
-                class="size-4 shrink-0"
-              />
-              <span class="text-sm truncate flex-1">{{ task.fileName }}</span>
-              <UButton
-                v-if="task.status === 'uploading'"
-                icon="i-lucide-x"
-                color="neutral"
-                variant="ghost"
-                size="xs"
-                @click="upload.cancelTask(task.id)"
-              />
-            </div>
-            <template v-if="task.status === 'uploading'">
-              <UProgress
-                :model-value="taskPercent(task)"
-                size="xs"
-              />
-              <div class="flex items-center justify-between text-xs text-muted">
-                <span>{{ formatSize(task.bytesUploaded) }} / {{ formatSize(task.fileSize) }}</span>
-                <span>{{ taskPercent(task) }}% · {{ formatSpeed(task.speed) }}</span>
-              </div>
-            </template>
-            <div
+    <template #actions>
+      <UDropdownMenu
+        :items="uploadSettingsItems"
+        :content="{ align: 'end' }"
+      >
+        <UButton
+          icon="i-lucide-settings"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+        />
+      </UDropdownMenu>
+    </template>
+
+    <template #body>
+      <UEmpty
+        v-if="upload.displayTasks.length === 0"
+        icon="i-lucide-upload"
+        :title="t('upload.noTasks')"
+        :description="t('upload.noTasksDesc')"
+        variant="naked"
+      />
+
+      <div
+        v-else
+        class="space-y-2"
+      >
+        <div
+          v-for="task in upload.displayTasks"
+          :key="task.id"
+          class="rounded-lg border border-default p-3 space-y-2"
+        >
+          <div class="flex items-center gap-2">
+            <UIcon
+              :name="taskIcon(task)"
+              :class="taskIconColor(task)"
+              class="size-4 shrink-0"
+            />
+            <span class="text-sm truncate flex-1">{{ task.fileName }}</span>
+            <UBadge
+              v-if="task.status === 'queued'"
+              size="xs"
+              color="neutral"
+              variant="subtle"
+              icon="i-lucide-clock"
+            >
+              {{ t('upload.queued') }}
+            </UBadge>
+            <UBadge
               v-else-if="task.status === 'completed'"
-              class="text-xs text-success"
+              size="xs"
+              color="success"
+              variant="subtle"
+              icon="i-lucide-check"
             >
-              {{ t('upload.completed') }} · {{ formatSize(task.fileSize) }}
-            </div>
-            <div
+              {{ t('upload.completed') }}
+            </UBadge>
+            <UBadge
               v-else-if="task.status === 'failed'"
-              class="text-xs text-error"
+              size="xs"
+              color="error"
+              variant="subtle"
+              icon="i-lucide-x"
             >
-              {{ task.error }}
-            </div>
-            <div
+              {{ t('upload.statusFailed') }}
+            </UBadge>
+            <UBadge
               v-else-if="task.status === 'cancelled'"
-              class="text-xs text-muted"
+              size="xs"
+              color="neutral"
+              variant="subtle"
+              icon="i-lucide-ban"
             >
               {{ t('upload.cancelled') }}
+            </UBadge>
+            <UButton
+              v-if="task.status === 'failed'"
+              icon="i-lucide-rotate-ccw"
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              @click="upload.retryTask(task.id)"
+            />
+            <UButton
+              v-if="task.status === 'uploading' || task.status === 'queued'"
+              icon="i-lucide-x"
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              @click="upload.cancelTask(task.id)"
+            />
+          </div>
+
+          <template v-if="task.status === 'uploading'">
+            <UProgress
+              :model-value="taskPercent(task)"
+              size="xs"
+            />
+            <div class="flex items-center justify-between text-xs text-muted">
+              <span>{{ formatSize(task.bytesUploaded) }} / {{ formatSize(task.fileSize) }}</span>
+              <span>{{ taskPercent(task) }}% · {{ formatSpeed(getTaskSpeed(task)) }}</span>
             </div>
+          </template>
+
+          <div
+            v-else-if="task.status === 'completed'"
+            class="text-xs text-muted"
+          >
+            {{ formatSize(task.fileSize) }}
+          </div>
+
+          <div
+            v-else-if="task.status === 'failed'"
+            class="text-xs text-error"
+          >
+            {{ task.error }}
           </div>
         </div>
+      </div>
+    </template>
 
-        <div class="flex items-center justify-between">
-          <span class="text-xs text-muted">
-            {{ t('upload.tasksInProgress', { n: upload.activeTasks.length }) }}
-          </span>
+    <template #footer>
+      <div class="flex items-center justify-between w-full">
+        <span class="text-xs text-muted">
+          {{ t('upload.tasksInProgress', { n: upload.activeTasks.length }) }}
+        </span>
+        <div class="flex items-center gap-1">
           <UButton
-            v-if="!upload.hasActiveTasks"
+            v-if="upload.hasFailedTasks"
+            :label="t('upload.retryAllFailed')"
+            icon="i-lucide-rotate-ccw"
+            color="warning"
+            variant="ghost"
+            size="xs"
+            @click="upload.retryAllFailed()"
+          />
+          <UButton
+            v-if="upload.tasks.length > upload.activeTasks.length"
             :label="t('upload.clearCompleted')"
             color="neutral"
             variant="ghost"
@@ -2252,7 +2417,41 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
         </div>
       </div>
     </template>
-  </UDrawer>
+  </USlideover>
+
+  <!-- Parallel Count Modal -->
+  <UModal
+    v-model:open="parallelModalOpen"
+    :title="t('upload.parallelCountTitle')"
+    description=" "
+    :ui="{ footer: 'justify-end' }"
+  >
+    <template #body>
+      <UFormField
+        :label="t('upload.parallelCountLabel')"
+        :description="t('upload.parallelCountDesc')"
+      >
+        <UInputNumber
+          v-model="parallelCountInput"
+          :min="1"
+          :max="20"
+          class="w-full"
+        />
+      </UFormField>
+    </template>
+    <template #footer>
+      <UButton
+        :label="t('common.cancel')"
+        color="neutral"
+        variant="outline"
+        @click="parallelModalOpen = false"
+      />
+      <UButton
+        :label="t('common.confirm')"
+        @click="confirmParallelCount"
+      />
+    </template>
+  </UModal>
 
   <FileViewer />
   <AppChooser />
