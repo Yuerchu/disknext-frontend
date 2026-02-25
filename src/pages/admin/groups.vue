@@ -37,8 +37,10 @@ interface Group {
 }
 
 interface GroupListResponse {
-  count: number
-  items: Group[]
+  groups?: Group[]
+  total?: number
+  count?: number
+  items?: Group[]
 }
 
 // List state
@@ -103,8 +105,8 @@ async function fetchGroups() {
         desc: orderDesc.value
       }
     })
-    groups.value = data.items
-    total.value = data.count
+    groups.value = data.groups ?? data.items ?? []
+    total.value = data.total ?? data.count ?? 0
   } catch (e: unknown) {
     const err = e as AxiosError<ApiErrorResponse>
     toast.add({

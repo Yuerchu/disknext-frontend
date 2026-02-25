@@ -67,10 +67,10 @@ const groupsLoading = ref(false)
 async function fetchGroupList() {
   groupsLoading.value = true
   try {
-    const { data } = await api.get<{ count: number; items: SimpleGroup[] }>('/api/v1/admin/group/', {
+    const { data } = await api.get<{ groups?: SimpleGroup[]; total?: number; items?: SimpleGroup[]; count?: number }>('/api/v1/admin/group/', {
       params: { offset: 0, limit: 100 }
     })
-    groupList.value = data.items ?? []
+    groupList.value = data.groups ?? data.items ?? []
   } catch (e: unknown) {
     const err = e as AxiosError<ApiErrorResponse>
     toast.add({
