@@ -3,7 +3,7 @@ import { h, resolveComponent } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { setLocale } from '../i18n'
-import type { DropdownMenuItem, TableColumn } from '@nuxt/ui'
+import type { DropdownMenuItem, TableColumn, ContextMenuItem, TableRow } from '@nuxt/ui'
 
 type RowSelectionState = Record<string, boolean>
 import type { AxiosError } from 'axios'
@@ -221,6 +221,51 @@ const columns = computed<TableColumn<TrashItem>[]>(() => [
   }
 ])
 
+// Context menu
+const contextItems = ref<ContextMenuItem[][]>([])
+
+function getEmptyAreaItems(): ContextMenuItem[][] {
+  return [[
+    { label: t('common.refresh'), icon: 'i-lucide-refresh-cw', onSelect() { fetchTrash() } }
+  ]]
+}
+
+function getTrashItemMenu(item: TrashItem): ContextMenuItem[][] {
+  return [
+    [{ label: t('trash.restore'), icon: 'i-lucide-undo-2', onSelect() { restoreItems([item.id]) } }],
+    [{ label: t('trash.permanentDelete'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect() { openDeleteConfirm([item.id]) } }]
+  ]
+}
+
+function getBulkItems(): ContextMenuItem[][] {
+  const ids = selectedItems.value.map(i => i.id)
+  const count = ids.length
+  return [
+    [{ label: t('trash.restore'), icon: 'i-lucide-undo-2', onSelect() { restoreItems(ids) } }],
+    [{
+      label: t('trash.permanentDelete') + ` (${count})`,
+      icon: 'i-lucide-trash-2',
+      color: 'error' as const,
+      onSelect() { openDeleteConfirm(ids) }
+    }]
+  ]
+}
+
+function resetContextMenu() {
+  contextItems.value = getEmptyAreaItems()
+}
+
+function onRowContextMenu(_e: Event, row: TableRow<TrashItem>) {
+  if (rowSelection.value[row.original.id] && selectedItems.value.length > 1) {
+    contextItems.value = getBulkItems()
+    return
+  }
+  if (selectedItems.value.length > 0) {
+    clearSelection()
+  }
+  contextItems.value = getTrashItemMenu(row.original)
+}
+
 // Row select handler
 function onRowSelect(e: Event, row: { original: TrashItem; getIsSelected: () => boolean; toggleSelected: (v: boolean) => void }) {
   const mouseEvent = e as MouseEvent
@@ -327,6 +372,7 @@ async function confirmEmptyTrash() {
 onMounted(() => {
   admin.checkAdmin()
   fetchTrash()
+  contextItems.value = getEmptyAreaItems()
   document.addEventListener('keydown', handleKeydown)
 })
 
@@ -417,6 +463,7 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
               :content="{ align: 'end' }"
             >
               <UAvatar
+                :src="user.avatarUrl(64)"
                 :alt="user.nickname"
                 size="sm"
               />
@@ -426,113 +473,117 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
       </template>
 
       <template #body>
-        <div
-          ref="trashListContainerRef"
-          class="flex flex-col h-full relative"
-          @mousedown="areaSelection.onMouseDown"
-        >
-          <!-- Batch action toolbar -->
+        <UContextMenu :items="contextItems">
           <div
-            v-if="isSelectionMode"
-            class="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-2.5 bg-elevated border-b border-accented"
+            ref="trashListContainerRef"
+            class="flex flex-col h-full relative"
+            @mousedown="areaSelection.onMouseDown"
+            @contextmenu.capture="resetContextMenu"
           >
-            <div class="flex items-center gap-2">
-              <UCheckbox
-                :model-value="selectedItems.length === items.length ? true : 'indeterminate'"
-                :aria-label="t('selection.selectAll')"
-                @update:model-value="(val: boolean | 'indeterminate') => {
-                  if (val) {
-                    const newSel: Record<string, boolean> = {}
-                    items.forEach(item => { newSel[item.id] = true })
-                    rowSelection = newSel
-                  } else {
-                    clearSelection()
-                  }
-                }"
-              />
-              <span class="text-sm font-medium">
-                {{ t('selection.selectedCount', { n: selectedItems.length }) }}
-              </span>
-            </div>
-            <div class="flex items-center gap-1">
-              <UButton
-                :label="t('trash.restore')"
-                icon="i-lucide-undo-2"
-                color="neutral"
-                variant="ghost"
-                size="sm"
-                @click="restoreItems(selectedItems.map(i => i.id))"
-              />
-              <UButton
-                :label="t('trash.permanentDelete')"
-                icon="i-lucide-trash-2"
-                color="error"
-                variant="ghost"
-                size="sm"
-                @click="openDeleteConfirm(selectedItems.map(i => i.id))"
-              />
-              <UButton
-                icon="i-lucide-x"
-                color="neutral"
-                variant="ghost"
-                size="sm"
-                @click="clearSelection"
-              />
-            </div>
-          </div>
-
-          <!-- Loading skeleton -->
-          <div
-            v-if="loading"
-            class="flex-1"
-          >
+            <!-- Batch action toolbar -->
             <div
-              v-for="i in 8"
-              :key="i"
-              class="flex items-center gap-3 px-4 py-3 border-b border-accented"
+              v-if="isSelectionMode"
+              class="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-2.5 bg-elevated border-b border-accented"
             >
-              <USkeleton class="size-5 rounded" />
-              <USkeleton
-                class="h-4 flex-1"
-                :style="{ maxWidth: `${200 + (i % 3) * 80}px` }"
-              />
-              <USkeleton class="h-4 w-16 ml-auto" />
-              <USkeleton class="h-4 w-28" />
+              <div class="flex items-center gap-2">
+                <UCheckbox
+                  :model-value="selectedItems.length === items.length ? true : 'indeterminate'"
+                  :aria-label="t('selection.selectAll')"
+                  @update:model-value="(val: boolean | 'indeterminate') => {
+                    if (val) {
+                      const newSel: Record<string, boolean> = {}
+                      items.forEach(item => { newSel[item.id] = true })
+                      rowSelection = newSel
+                    } else {
+                      clearSelection()
+                    }
+                  }"
+                />
+                <span class="text-sm font-medium">
+                  {{ t('selection.selectedCount', { n: selectedItems.length }) }}
+                </span>
+              </div>
+              <div class="flex items-center gap-1">
+                <UButton
+                  :label="t('trash.restore')"
+                  icon="i-lucide-undo-2"
+                  color="neutral"
+                  variant="ghost"
+                  size="sm"
+                  @click="restoreItems(selectedItems.map(i => i.id))"
+                />
+                <UButton
+                  :label="t('trash.permanentDelete')"
+                  icon="i-lucide-trash-2"
+                  color="error"
+                  variant="ghost"
+                  size="sm"
+                  @click="openDeleteConfirm(selectedItems.map(i => i.id))"
+                />
+                <UButton
+                  icon="i-lucide-x"
+                  color="neutral"
+                  variant="ghost"
+                  size="sm"
+                  @click="clearSelection"
+                />
+              </div>
+            </div>
+
+            <!-- Loading skeleton -->
+            <div
+              v-if="loading"
+              class="flex-1"
+            >
+              <div
+                v-for="i in 8"
+                :key="i"
+                class="flex items-center gap-3 px-4 py-3 border-b border-accented"
+              >
+                <USkeleton class="size-5 rounded" />
+                <USkeleton
+                  class="h-4 flex-1"
+                  :style="{ maxWidth: `${200 + (i % 3) * 80}px` }"
+                />
+                <USkeleton class="h-4 w-16 ml-auto" />
+                <USkeleton class="h-4 w-28" />
+              </div>
+            </div>
+
+            <!-- Table -->
+            <UTable
+              v-else-if="items.length > 0"
+              v-model:row-selection="rowSelection"
+              :data="items"
+              :columns="columns"
+              :get-row-id="(row: TrashItem) => row.id"
+              :meta="tableMeta"
+              :ui="{ tbody: 'trash-list-tbody' }"
+              class="flex-1"
+              @select="onRowSelect"
+              @contextmenu="onRowContextMenu"
+            />
+
+            <!-- Empty state -->
+            <div
+              v-else
+              class="flex items-center justify-center py-24 text-muted"
+            >
+              <div class="text-center space-y-2">
+                <UIcon
+                  name="i-lucide-trash-2"
+                  class="size-16 mx-auto opacity-50"
+                />
+                <p class="text-lg">
+                  {{ t('trash.empty') }}
+                </p>
+                <p class="text-sm">
+                  {{ t('trash.emptyHint') }}
+                </p>
+              </div>
             </div>
           </div>
-
-          <!-- Table -->
-          <UTable
-            v-else-if="items.length > 0"
-            v-model:row-selection="rowSelection"
-            :data="items"
-            :columns="columns"
-            :get-row-id="(row: TrashItem) => row.id"
-            :meta="tableMeta"
-            :ui="{ tbody: 'trash-list-tbody' }"
-            class="flex-1"
-            @select="onRowSelect"
-          />
-
-          <!-- Empty state -->
-          <div
-            v-else
-            class="flex items-center justify-center py-24 text-muted"
-          >
-            <div class="text-center space-y-2">
-              <UIcon
-                name="i-lucide-trash-2"
-                class="size-16 mx-auto opacity-50"
-              />
-              <p class="text-lg">
-                {{ t('trash.empty') }}
-              </p>
-              <p class="text-sm">
-                {{ t('trash.emptyHint') }}
-              </p>
-            </div>
-          </div>
-        </div>
+        </UContextMenu>
       </template>
     </UDashboardPanel>
   </UDashboardGroup>
