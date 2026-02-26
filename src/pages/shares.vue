@@ -373,13 +373,26 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
 
           <div
             v-else-if="shares.length === 0"
-            class="text-center py-12 text-muted"
+            class="text-center py-12 text-muted space-y-3"
           >
             <UIcon
               name="i-lucide-share-2"
-              class="size-12 mx-auto mb-4 opacity-50"
+              class="size-16 mx-auto opacity-50"
             />
-            <p>{{ t('myShares.empty') }}</p>
+            <p class="text-lg">
+              {{ t('myShares.empty') }}
+            </p>
+            <p class="text-sm">
+              {{ t('myShares.emptyHint') }}
+            </p>
+            <UButton
+              :label="t('myShares.goToFiles')"
+              icon="i-lucide-folder"
+              color="primary"
+              variant="soft"
+              size="sm"
+              to="/home"
+            />
           </div>
 
           <template v-else>

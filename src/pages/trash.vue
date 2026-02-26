@@ -569,10 +569,10 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
               v-else
               class="flex items-center justify-center py-24 text-muted"
             >
-              <div class="text-center space-y-2">
+              <div class="text-center space-y-3">
                 <UIcon
-                  name="i-lucide-trash-2"
-                  class="size-16 mx-auto opacity-50"
+                  name="i-lucide-check-circle"
+                  class="size-16 mx-auto text-success opacity-70"
                 />
                 <p class="text-lg">
                   {{ t('trash.empty') }}
