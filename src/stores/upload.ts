@@ -1,7 +1,7 @@
-import type { AxiosError } from 'axios'
 import { defineStore } from 'pinia'
 import i18n from '../i18n'
 import api from '../utils/api'
+import { getApiErrorMessage, RETRYABLE_STATUSES } from '../utils/apiErrors'
 
 export interface UploadSession {
   id: string
@@ -65,6 +65,18 @@ function saveSettings(state: UploadState) {
 }
 
 let taskCounter = 0
+const MAX_CHUNK_RETRIES = 3
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function isRetryableUploadError(error: unknown): boolean {
+  const detail = (error as { response?: { status?: number } })
+  const status = detail.response?.status
+  const isNetwork = !status
+  return isNetwork || (status !== undefined && RETRYABLE_STATUSES.has(status))
+}
 
 export const useUploadStore = defineStore('upload', {
   state: (): UploadState => {
@@ -112,7 +124,7 @@ export const useUploadStore = defineStore('upload', {
         chunkSize: session.chunk_size,
         totalChunks: session.total_chunks,
         uploadedChunks: session.uploaded_chunks,
-        bytesUploaded: 0,
+        bytesUploaded: Math.min(session.uploaded_chunks * session.chunk_size, file.size),
         speed: 0,
         startTime: now,
         lastSpeedUpdate: now,
@@ -158,13 +170,40 @@ export const useUploadStore = defineStore('upload', {
           const formData = new FormData()
           formData.append('file', chunk)
 
-          const { data: result } = await api.post(
-            `/api/v1/file/upload/${task.sessionId}/${i}`,
-            formData
-          )
+          let attempt = 0
+          let result: { uploaded_chunks: number; is_complete?: boolean } | null = null
 
-          task.uploadedChunks = result.uploaded_chunks
-          task.bytesUploaded = Math.min(task.uploadedChunks * task.chunkSize, task.fileSize)
+          while (attempt < MAX_CHUNK_RETRIES) {
+            try {
+              const { data: uploadResult } = await api.post<{ uploaded_chunks: number; is_complete?: boolean }>(
+                `/api/v1/file/upload/${task.sessionId}/${i}`,
+                formData
+              )
+              const normalizedUploadedChunks = Math.min(
+                Math.max(uploadResult.uploaded_chunks, task.uploadedChunks),
+                task.totalChunks
+              )
+              result = uploadResult
+              task.uploadedChunks = normalizedUploadedChunks
+              task.bytesUploaded = Math.min(task.uploadedChunks * task.chunkSize, task.fileSize)
+
+              // 保护：如果服务端已确认更多分片上传成功，则直接跳过已确认分片
+              if (task.uploadedChunks > i + 1) {
+                i = task.uploadedChunks - 1
+              }
+
+              break
+            } catch (error) {
+              attempt++
+              if (attempt >= MAX_CHUNK_RETRIES || !isRetryableUploadError(error)) {
+                throw error
+              }
+              const backoff = Math.min(1000 * attempt, 4000)
+              await sleep(backoff)
+            }
+          }
+
+          if (!result) return
 
           const now = Date.now()
           const elapsed = now - task.lastSpeedUpdate
@@ -185,8 +224,11 @@ export const useUploadStore = defineStore('upload', {
       } catch (e: unknown) {
         if (task.status !== 'cancelled') {
           task.status = 'failed'
-          const err = e as AxiosError<{ detail?: string }>
-          task.error = err?.response?.data?.detail || i18n.global.t('upload.failed')
+          task.error = getApiErrorMessage(
+            e,
+            i18n.global.t('upload.failed'),
+            { 409: i18n.global.t('errors.conflict') }
+          )
         }
       } finally {
         this.tryProcessNext()
@@ -215,18 +257,23 @@ export const useUploadStore = defineStore('upload', {
       if (!task || task.status !== 'failed') return
 
       try {
-        const { data: session } = await api.put<UploadSession>('/api/v1/file/upload/', {
-          file_name: task.fileName,
-          file_size: task.fileSize,
-          parent_id: task.parentId,
-          policy_id: task.policyId,
-        })
+        if (task.uploadedChunks > 0 && task.sessionId) {
+          // Prefer resuming the original upload session to avoid duplicate uploads
+          task.bytesUploaded = task.uploadedChunks * task.chunkSize
+        } else {
+          const { data: session } = await api.put<UploadSession>('/api/v1/file/upload/', {
+            file_name: task.fileName,
+            file_size: task.fileSize,
+            parent_id: task.parentId,
+            policy_id: task.policyId,
+          })
 
-        task.sessionId = session.id
-        task.chunkSize = session.chunk_size
-        task.totalChunks = session.total_chunks
-        task.uploadedChunks = session.uploaded_chunks
-        task.bytesUploaded = 0
+          task.sessionId = session.id
+          task.chunkSize = session.chunk_size
+          task.totalChunks = session.total_chunks
+          task.uploadedChunks = session.uploaded_chunks
+          task.bytesUploaded = 0
+        }
         task.speed = 0
         task.error = ''
         task.status = 'queued'
@@ -238,8 +285,9 @@ export const useUploadStore = defineStore('upload', {
 
         this.tryProcessNext()
       } catch (e: unknown) {
-        const err = e as AxiosError<{ detail?: string }>
-        task.error = err?.response?.data?.detail || i18n.global.t('upload.retryFailed')
+        task.error = getApiErrorMessage(e, i18n.global.t('upload.retryFailed'), {
+          409: i18n.global.t('errors.conflict')
+        })
       }
     },
 

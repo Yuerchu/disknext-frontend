@@ -6,6 +6,19 @@ import { clearSessionStores } from './session'
 
 const api = axios.create()
 
+const SESSION_REDIRECT_THROTTLE_MS = 1200
+let sessionRedirectAt = 0
+
+function redirectToSession() {
+  const now = Date.now()
+  if (now - sessionRedirectAt < SESSION_REDIRECT_THROTTLE_MS) {
+    return
+  }
+  sessionRedirectAt = now
+  clearSessionStores()
+  router.push('/session')
+}
+
 api.interceptors.request.use((config) => {
   const auth = useAuthStore()
   if (auth.accessToken) {
@@ -14,7 +27,6 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-let refreshing: Promise<boolean> | null = null
 type RetriableRequestConfig = (AxiosRequestConfig & InternalAxiosRequestConfig) & { _retried?: boolean }
 
 api.interceptors.response.use(
@@ -23,29 +35,25 @@ api.interceptors.response.use(
     const auth = useAuthStore()
     const original = error.config as RetriableRequestConfig | undefined
     if (!original) return Promise.reject(error)
+    const isAuthEndpoint = typeof original.url === 'string'
+      ? original.url.startsWith('/api/v1/user/session')
+      : false
 
-    if (error.response?.status === 401 && !original._retried) {
+    if (error.response?.status === 401 && !original._retried && !isAuthEndpoint) {
       original._retried = true
-
-      if (!refreshing) {
-        refreshing = auth.refresh().finally(() => { refreshing = null })
-      }
-
-      const ok = await refreshing
+      const ok = await auth.refresh()
       if (ok) {
         original.headers = original.headers || {}
         original.headers.Authorization = `Bearer ${auth.accessToken}`
         return api(original)
       }
 
-      clearSessionStores()
-      router.push('/session')
+      redirectToSession()
       return Promise.reject(error)
     }
 
-    if (error.response?.status === 401) {
-      clearSessionStores()
-      router.push('/session')
+    if (error.response?.status === 401 && !isAuthEndpoint) {
+      redirectToSession()
     }
 
     return Promise.reject(error)

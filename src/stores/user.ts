@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import api from '../utils/api'
+import { getApiErrorMessage } from '../utils/apiErrors'
 
 interface UserState {
   id: string
@@ -9,7 +10,10 @@ interface UserState {
   avatar: string
   avatarVersion: number
   fetched: boolean
+  lastError: string
 }
+
+let fetchProfileInFlight: Promise<void> | null = null
 
 export const useUserStore = defineStore('user', {
   state: (): UserState => ({
@@ -19,7 +23,8 @@ export const useUserStore = defineStore('user', {
     phone: null,
     avatar: 'default',
     avatarVersion: Date.now(),
-    fetched: false
+    fetched: false,
+    lastError: ''
   }),
 
   getters: {
@@ -33,17 +38,33 @@ export const useUserStore = defineStore('user', {
 
   actions: {
     async fetchProfile() {
-      try {
-        const { data } = await api.get('/api/v1/user/me')
-        this.id = data.id
-        this.nickname = data.nickname
-        this.email = data.email ?? null
-        this.phone = data.phone ?? null
-        this.avatar = data.avatar ?? 'default'
-      } catch {
-        // ignore
+      if (this.fetched) {
+        return
       }
-      this.fetched = true
+
+      if (fetchProfileInFlight) return fetchProfileInFlight
+
+      this.lastError = ''
+      fetchProfileInFlight = (async () => {
+        try {
+          const { data } = await api.get('/api/v1/user/me')
+          this.id = data.id
+          this.nickname = data.nickname
+          this.email = data.email ?? null
+          this.phone = data.phone ?? null
+          this.avatar = data.avatar ?? 'default'
+          this.fetched = true
+          this.lastError = ''
+        } catch (error: unknown) {
+          this.lastError = getApiErrorMessage(error, 'Failed to fetch profile')
+          this.fetched = false
+        }
+      })()
+      try {
+        await fetchProfileInFlight
+      } finally {
+        fetchProfileInFlight = null
+      }
     },
 
     refreshAvatar() {
@@ -58,6 +79,7 @@ export const useUserStore = defineStore('user', {
       this.avatar = 'default'
       this.avatarVersion = Date.now()
       this.fetched = false
+      this.lastError = ''
     }
   }
 })

@@ -30,22 +30,16 @@ router.beforeEach(async (to) => {
     return '/session'
   }
 
-  if (auth.isAccessExpired) {
-    if (auth.isRefreshExpired) {
-      auth.logout()
-      return '/session'
-    }
-    const ok = await auth.refresh()
-    if (!ok) {
-      return '/session'
-    }
+  const ok = await auth.ensureAuthenticated()
+  if (!ok) {
+    return '/session'
   }
 
   if (!user.fetched) {
     await user.fetchProfile()
   }
 
-  if (!admin.checked) {
+  if (to.meta.admin) {
     await admin.checkAdmin()
   }
 

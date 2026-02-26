@@ -15,7 +15,10 @@ function loadFromStorage(): AuthState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) return JSON.parse(raw)
-  } catch { /* ignore invalid JSON */ }
+  } catch {
+    console.error('[auth] failed to parse cached session info')
+    clearStorage()
+  }
   return { accessToken: '', refreshToken: '', accessExpires: '', refreshExpires: '', instanceId: '' }
 }
 
@@ -26,6 +29,8 @@ function saveToStorage(state: AuthState) {
 function clearStorage() {
   localStorage.removeItem(STORAGE_KEY)
 }
+
+let refreshInProgress: Promise<boolean> | null = null
 
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => loadFromStorage(),
@@ -53,20 +58,47 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async refresh(): Promise<boolean> {
+      if (refreshInProgress) return refreshInProgress
+
       if (!this.refreshToken || this.isRefreshExpired) {
         this.logout()
         return false
       }
-      try {
-        const { data } = await axios.post('/api/v1/user/session/refresh', {
-          refresh_token: this.refreshToken
+
+      refreshInProgress = axios.post('/api/v1/user/session/refresh', {
+        refresh_token: this.refreshToken
+      })
+        .then((response) => {
+          this.setSession(response.data)
+          return true
         })
-        this.setSession(data)
+        .catch((error) => {
+          console.error('[auth] session refresh failed', error)
+          this.logout()
+          return false
+        })
+        .finally(() => {
+          refreshInProgress = null
+        })
+
+      return refreshInProgress
+    },
+
+    async ensureAuthenticated(): Promise<boolean> {
+      if (!this.isAuthenticated) {
+        return false
+      }
+
+      if (!this.isAccessExpired) {
         return true
-      } catch {
+      }
+
+      if (this.isRefreshExpired) {
         this.logout()
         return false
       }
+
+      return this.refresh()
     },
 
     logout() {

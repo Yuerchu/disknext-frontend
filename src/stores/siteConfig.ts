@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import axios from 'axios'
+import { getApiErrorMessage } from '../utils/apiErrors'
 
 interface AuthMethod {
   provider: string
@@ -23,8 +24,12 @@ interface SiteConfig {
   privacyUrl: string
 }
 
+type SiteConfigState = SiteConfig & { fetched: boolean; lastError: string }
+
+let fetchConfigInFlight: Promise<void> | null = null
+
 export const useSiteConfigStore = defineStore('siteConfig', {
-  state: (): SiteConfig & { fetched: boolean } => ({
+  state: (): SiteConfigState => ({
     title: '',
     logoLight: '',
     logoDark: '',
@@ -40,6 +45,7 @@ export const useSiteConfigStore = defineStore('siteConfig', {
     tosUrl: '',
     privacyUrl: '',
     fetched: false,
+    lastError: '',
   }),
 
   getters: {
@@ -51,28 +57,40 @@ export const useSiteConfigStore = defineStore('siteConfig', {
   actions: {
     async fetchConfig() {
       if (this.fetched) return
+      if (fetchConfigInFlight) return fetchConfigInFlight
+
+      this.lastError = ''
+      fetchConfigInFlight = (async () => {
+        try {
+          const { data } = await axios.get('/api/v1/site/config')
+          this.title = data.title ?? ''
+          this.logoLight = data.logo_light ?? ''
+          this.logoDark = data.logo_dark ?? ''
+          this.loginCaptcha = data.login_captcha ?? false
+          this.regCaptcha = data.reg_captcha ?? false
+          this.captchaType = data.captcha_type ?? 'default'
+          this.captchaKey = data.captcha_key ?? null
+          this.registerEnabled = data.register_enabled ?? false
+          this.authMethods = (data.auth_methods ?? []).map((m: { provider: string; is_enabled: boolean }) => ({
+            provider: m.provider,
+            isEnabled: m.is_enabled,
+          }))
+          this.passwordRequired = data.password_required ?? false
+          this.emailBindingRequired = data.email_binding_required ?? false
+          this.phoneBindingRequired = data.phone_binding_required ?? false
+          this.tosUrl = data.tos_url ?? ''
+          this.privacyUrl = data.privacy_url ?? ''
+          this.fetched = true
+          this.lastError = ''
+        } catch (error: unknown) {
+          this.lastError = getApiErrorMessage(error, 'Failed to fetch site config')
+        }
+      })()
+
       try {
-        const { data } = await axios.get('/api/v1/site/config')
-        this.title = data.title ?? ''
-        this.logoLight = data.logo_light ?? ''
-        this.logoDark = data.logo_dark ?? ''
-        this.loginCaptcha = data.login_captcha ?? false
-        this.regCaptcha = data.reg_captcha ?? false
-        this.captchaType = data.captcha_type ?? 'default'
-        this.captchaKey = data.captcha_key ?? null
-        this.registerEnabled = data.register_enabled ?? false
-        this.authMethods = (data.auth_methods ?? []).map((m: { provider: string; is_enabled: boolean }) => ({
-          provider: m.provider,
-          isEnabled: m.is_enabled,
-        }))
-        this.passwordRequired = data.password_required ?? false
-        this.emailBindingRequired = data.email_binding_required ?? false
-        this.phoneBindingRequired = data.phone_binding_required ?? false
-        this.tosUrl = data.tos_url ?? ''
-        this.privacyUrl = data.privacy_url ?? ''
-        this.fetched = true
-      } catch {
-        // silently fail — login page will work without captcha
+        await fetchConfigInFlight
+      } finally {
+        fetchConfigInFlight = null
       }
     },
   },
