@@ -17,8 +17,10 @@ import AppChooser from '../components/AppChooser.vue'
 import { useAreaSelection } from '../composables/useAreaSelection'
 import { useFileDragDrop } from '../composables/useFileDragDrop'
 import { useFileOpen, getFileIcon } from '../composables/useFileOpen'
+import { useAsyncAction } from '../composables/useAsyncAction'
 import { clearSessionStores } from '../utils/session'
 import api from '../utils/api'
+import { getApiErrorMessage } from '../utils/apiErrors'
 
 const UIcon = resolveComponent('UIcon')
 const UCheckbox = resolveComponent('UCheckbox')
@@ -32,6 +34,7 @@ const storageStore = useStorageStore()
 const upload = useUploadStore()
 const fileOpen = useFileOpen()
 const { t, locale } = useI18n()
+const indexActions = useAsyncAction()
 
 import type { AxiosError } from 'axios'
 
@@ -129,6 +132,11 @@ interface DirectoryResponse {
     max_size: number
     file_type: string[] | null
   }
+  total?: number
+  limit?: number
+  offset?: number
+  has_more?: boolean
+  next_offset?: number
 }
 
 interface ObjectPropertyDetail {
@@ -172,34 +180,135 @@ interface TaskSummary {
 
 const directory = ref<DirectoryResponse | null>(null)
 const loading = ref(true)
+const loadingMore = ref(false)
+const directoryPaginationEnabled = ref(false)
+const directoryHasMore = ref(false)
+const directoryOffset = ref(0)
 const currentPath = computed(() => {
   const p = route.params.path
   if (Array.isArray(p)) return p.join('/')
   return p || ''
 })
 
-async function fetchDirectory(path: string) {
-  clearSelection()
-  loading.value = true
+const DIRECTORY_PAGE_SIZE = 200
+
+function getDirectoryPageMeta(
+  data: DirectoryResponse,
+  requestOffset: number,
+  requestedLimit: number,
+) {
+  const hasMeta =
+    data.total !== undefined ||
+    data.limit !== undefined ||
+    data.offset !== undefined ||
+    data.has_more !== undefined ||
+    data.next_offset !== undefined
+
+  const actualOffset = data.offset ?? requestOffset
+  const actualLimit = data.limit ?? requestedLimit
+  const fetchedCount = data.objects?.length ?? 0
+  const hasMore = data.has_more !== undefined
+    ? data.has_more
+    : data.total !== undefined
+      ? (actualOffset + fetchedCount < data.total)
+      : data.next_offset !== undefined
+        ? data.next_offset > actualOffset
+        : false
+
+  const nextOffset = data.next_offset !== undefined
+    ? data.next_offset
+    : actualOffset + actualLimit
+
+  return { hasMeta, hasMore, nextOffset: Math.max(nextOffset, requestOffset) }
+}
+
+async function fetchDirectory(path: string, append = false) {
+  if (append && loadingMore.value) return
+
+  if (append) {
+    loadingMore.value = true
+  } else {
+    clearSelection()
+    loading.value = true
+    directoryOffset.value = 0
+    directoryHasMore.value = false
+  }
+
+  const requestOffset = append ? directoryOffset.value : 0
   try {
     const url = path ? `/api/v1/directory/${path}` : '/api/v1/directory/'
-    const { data } = await api.get<DirectoryResponse>(url)
-    directory.value = data
-  } catch (e: unknown) {
-    const err = e as { response?: { status?: number; data?: { detail?: string } } }
-    const status = err.response?.status
-    if (path && (status === 404 || status === 403)) {
-      const detail = err.response?.data?.detail
-      if (detail) {
-        toast.add({ title: detail, color: 'error' })
+    const params = directoryPaginationEnabled.value || append
+      ? {
+        offset: requestOffset,
+        limit: DIRECTORY_PAGE_SIZE
       }
+      : undefined
+
+    const { data } = await api.get<DirectoryResponse>(url, params ? { params } : undefined)
+
+    if (data && typeof data === 'object') {
+      const hasMoreSupport = data.total !== undefined || data.has_more !== undefined || data.next_offset !== undefined
+      if (hasMoreSupport) {
+        directoryPaginationEnabled.value = true
+      }
+
+      const { hasMeta, hasMore, nextOffset } = getDirectoryPageMeta(data, requestOffset, DIRECTORY_PAGE_SIZE)
+      directoryHasMore.value = hasMeta && hasMore
+      directoryOffset.value = directoryHasMore.value ? nextOffset : 0
+
+      if (append && directory.value) {
+        const existing = directory.value.objects
+        const merged = [...existing]
+        const existingIds = new Set(existing.map((item) => item.id))
+        for (const item of data.objects) {
+          if (!existingIds.has(item.id)) {
+            merged.push(item)
+            existingIds.add(item.id)
+          }
+        }
+        directory.value = {
+          ...data,
+          objects: merged
+        }
+      } else {
+        directory.value = data
+      }
+    } else {
+      if (!append) directory.value = null
+      directoryHasMore.value = false
+      directoryOffset.value = 0
+    }
+  } catch (e: unknown) {
+    const status = (e as { response?: { status?: number } })?.response?.status
+    const message = getApiErrorMessage(e, t('errors.fetchFailed'), {
+      404: t('errors.notFound'),
+      403: t('errors.fetchFailed'),
+      401: t('errors.loginFailed')
+    })
+
+    if (path && (status === 404 || status === 403)) {
+      toast.add({ title: message, color: 'error' })
       router.replace('/home')
       return
     }
-    directory.value = null
+    if (message) {
+      toast.add({ title: t('errors.fetchFailed'), description: message, color: 'error' })
+    }
+    if (!append) directory.value = null
+    directoryHasMore.value = false
+    directoryOffset.value = 0
   } finally {
-    loading.value = false
+    if (append) {
+      loadingMore.value = false
+    } else {
+      loading.value = false
+    }
   }
+}
+
+async function loadMoreDirectory() {
+  if (!directoryHasMore.value || loadingMore.value) return
+  await fetchDirectory(currentPath.value, true)
 }
 
 function navigateToFolder(name: string) {
@@ -245,6 +354,13 @@ const sortedObjects = computed(() => {
   })
   return objs
 })
+
+// File siblings for viewer navigation (files only)
+const fileSiblings = computed(() =>
+  sortedObjects.value
+    .filter(o => o.type === 'file')
+    .map(o => ({ id: o.id, name: o.name, size: o.size }))
+)
 
 // Selection state
 const rowSelection = ref<RowSelectionState>({})
@@ -482,7 +598,7 @@ function getFolderItems(obj: FileObject): ContextMenuItem[][] {
 function getFileItems(obj: FileObject): ContextMenuItem[][] {
   return [
     [
-      { label: t('common.open'), icon: 'i-lucide-external-link', onSelect() { fileOpen.openFile({ id: obj.id, name: obj.name, size: obj.size }) } },
+      { label: t('common.open'), icon: 'i-lucide-external-link', onSelect() { fileOpen.openFile({ id: obj.id, name: obj.name, size: obj.size }, fileSiblings.value) } },
       {
         label: t('contextMenu.openWith'),
         icon: 'i-lucide-app-window',
@@ -580,16 +696,11 @@ function onRowContextMenu(_e: Event, row: TableRow<FileObject>) {
 
 // Error toast
 function showApiError(e: AxiosError<ApiErrorResponse>, fallback: string) {
-  const status = e.response!.status
-  const detail = e.response!.data!.detail
-  const errorMessages: Record<number, string> = {
+  const message = getApiErrorMessage(e, fallback, {
     400: t('errors.invalidParams'),
     404: t('errors.notFound'),
     409: t('errors.conflict')
-  }
-  const message = typeof detail === 'string'
-    ? detail
-    : errorMessages[status] || fallback
+  })
   toast.add({
     title: fallback,
     description: message,
@@ -610,17 +721,19 @@ function deleteObjects(ids: string[], name?: string) {
 }
 
 async function confirmDelete() {
-  try {
-    await api.delete('/api/v1/object/', {
-      data: { ids: deleteTargetIds.value }
-    })
-    deleteModalOpen.value = false
-    clearSelection()
-    fetchDirectory(currentPath.value)
-    storageStore.refresh()
-  } catch (e: unknown) {
-    showApiError(e as AxiosError<ApiErrorResponse>, t('errors.deleteFailed'))
-  }
+  await indexActions.run('delete-objects', async () => {
+    try {
+      await api.delete('/api/v1/object/', {
+        data: { ids: deleteTargetIds.value }
+      })
+      deleteModalOpen.value = false
+      clearSelection()
+      fetchDirectory(currentPath.value)
+      storageStore.refresh()
+    } catch (e: unknown) {
+      showApiError(e as AxiosError<ApiErrorResponse>, t('errors.deleteFailed'))
+    }
+  })
 }
 
 // Rename modal
@@ -637,13 +750,15 @@ function renameObject(obj: FileObject) {
 async function confirmRename() {
   const name = renameNewName.value.trim()
   if (!name) return
-  try {
-    await api.post('/api/v1/object/rename', { id: renameTargetId.value, new_name: name })
-    renameModalOpen.value = false
-    fetchDirectory(currentPath.value)
-  } catch (e: unknown) {
-    showApiError(e as AxiosError<ApiErrorResponse>, t('errors.renameFailed'))
-  }
+  await indexActions.run('rename-object', async () => {
+    try {
+      await api.post('/api/v1/object/rename', { id: renameTargetId.value, new_name: name })
+      renameModalOpen.value = false
+      fetchDirectory(currentPath.value)
+    } catch (e: unknown) {
+      showApiError(e as AxiosError<ApiErrorResponse>, t('errors.renameFailed'))
+    }
+  })
 }
 
 // Create modal
@@ -660,31 +775,32 @@ function openCreateModal(type: 'folder' | 'file') {
 async function confirmCreate() {
   const name = createName.value.trim()
   if (!name) return
-  try {
-    if (createType.value === 'folder') {
-      await api.post('/api/v1/directory/', {
-        parent_id: directory.value?.id,
-        name
-      })
-    } else {
-      await api.post('/api/v1/object/', {
-        parent_id: directory.value?.id,
-        name
-      })
+  await indexActions.run('create-object', async () => {
+    try {
+      if (createType.value === 'folder') {
+        await api.post('/api/v1/directory/', {
+          parent_id: directory.value?.id,
+          name
+        })
+      } else {
+        await api.post('/api/v1/object/', {
+          parent_id: directory.value?.id,
+          name
+        })
+      }
+      createModalOpen.value = false
+      fetchDirectory(currentPath.value)
+      storageStore.refresh()
+    } catch (e: unknown) {
+      showApiError(e as AxiosError<ApiErrorResponse>, t('errors.createFailed'))
     }
-    createModalOpen.value = false
-    fetchDirectory(currentPath.value)
-    storageStore.refresh()
-  } catch (e: unknown) {
-    showApiError(e as AxiosError<ApiErrorResponse>, t('errors.createFailed'))
-  }
+  })
 }
 
 // Share modal
 const shareModalOpen = ref(false)
 const shareTargetId = ref('')
 const shareTargetName = ref('')
-const shareCreating = ref(false)
 const shareResult = ref<{ instanceId: string; shareId: string } | null>(null)
 
 const shareHasExpiry = ref(false)
@@ -709,7 +825,6 @@ function openShareModal(obj: FileObject) {
     score: 0,
   }
   shareResult.value = null
-  shareCreating.value = false
   shareModalOpen.value = true
 }
 
@@ -718,25 +833,24 @@ function getShareLink(shareId: string): string {
 }
 
 async function confirmShare() {
-  shareCreating.value = true
-  try {
-    const body: Record<string, unknown> = {
-      object_id: shareTargetId.value,
-      preview_enabled: shareForm.value.preview_enabled,
-      score: shareForm.value.score,
+  await indexActions.run('create-share', async () => {
+    try {
+      const body: Record<string, unknown> = {
+        object_id: shareTargetId.value,
+        preview_enabled: shareForm.value.preview_enabled,
+        score: shareForm.value.score,
+      }
+      if (shareForm.value.password) body.password = shareForm.value.password
+      if (shareHasExpiry.value && shareExpiresDateTime.value) {
+        body.expires = new Date(shareExpiresDateTime.value).toISOString()
+      }
+      if (shareForm.value.remain_downloads != null) body.remain_downloads = shareForm.value.remain_downloads
+      const { data } = await api.post<{ instance_id: string; share_id: string }>('/api/v1/share/', body)
+      shareResult.value = { instanceId: data.instance_id, shareId: data.share_id }
+    } catch (e: unknown) {
+      showApiError(e as AxiosError<ApiErrorResponse>, t('shareModal.failed'))
     }
-    if (shareForm.value.password) body.password = shareForm.value.password
-    if (shareHasExpiry.value && shareExpiresDateTime.value) {
-      body.expires = new Date(shareExpiresDateTime.value).toISOString()
-    }
-    if (shareForm.value.remain_downloads != null) body.remain_downloads = shareForm.value.remain_downloads
-    const { data } = await api.post<{ instance_id: string; share_id: string }>('/api/v1/share/', body)
-    shareResult.value = { instanceId: data.instance_id, shareId: data.share_id }
-  } catch (e: unknown) {
-    showApiError(e as AxiosError<ApiErrorResponse>, t('shareModal.failed'))
-  } finally {
-    shareCreating.value = false
-  }
+  })
 }
 
 function copyShareLink() {
@@ -749,8 +863,6 @@ function copyShareLink() {
 const policySwitchOpen = ref(false)
 const policySwitchTarget = ref<FileObject | null>(null)
 const policySwitchPolicies = ref<PolicySummary[]>([])
-const policySwitchLoading = ref(false)
-const policySwitchSubmitting = ref(false)
 const policySwitchForm = ref({
   policy_id: '',
   is_migrate_existing: false
@@ -760,62 +872,58 @@ async function openPolicySwitchModal(obj: FileObject) {
   policySwitchTarget.value = obj
   policySwitchForm.value = { policy_id: '', is_migrate_existing: false }
   policySwitchOpen.value = true
-  policySwitchLoading.value = true
-  try {
-    const { data } = await api.get<PolicySummary[]>('/api/v1/user/settings/policies')
-    policySwitchPolicies.value = data
-  } catch (e: unknown) {
-    showApiError(e as AxiosError<ApiErrorResponse>, t('policySwitch.fetchFailed'))
-    policySwitchOpen.value = false
-  } finally {
-    policySwitchLoading.value = false
-  }
+  await indexActions.run('policy-switch-open', async () => {
+    try {
+      const { data } = await api.get<PolicySummary[]>('/api/v1/user/settings/policies')
+      policySwitchPolicies.value = data
+    } catch (e: unknown) {
+      showApiError(e as AxiosError<ApiErrorResponse>, t('policySwitch.fetchFailed'))
+      policySwitchOpen.value = false
+    }
+  })
 }
 
 async function confirmPolicySwitch() {
   if (!policySwitchTarget.value || !policySwitchForm.value.policy_id) return
-  policySwitchSubmitting.value = true
-  try {
-    const { data } = await api.patch<TaskSummary>(
-      `/api/v1/object/${policySwitchTarget.value.id}/policy`,
-      {
-        policy_id: policySwitchForm.value.policy_id,
-        is_migrate_existing: policySwitchForm.value.is_migrate_existing
-      }
-    )
-    policySwitchOpen.value = false
-    toast.add({
-      title: t('policySwitch.taskCreated'),
-      description: t('policySwitch.taskId', { id: data.id }),
-      icon: 'i-lucide-check-circle',
-      color: 'success'
-    })
-    fetchDirectory(currentPath.value)
-  } catch (e: unknown) {
-    showApiError(e as AxiosError<ApiErrorResponse>, t('policySwitch.failed'))
-  } finally {
-    policySwitchSubmitting.value = false
-  }
+  await indexActions.run('policy-switch-submit', async () => {
+    try {
+      const { data } = await api.patch<TaskSummary>(
+        `/api/v1/object/${policySwitchTarget.value!.id}/policy`,
+        {
+          policy_id: policySwitchForm.value.policy_id,
+          is_migrate_existing: policySwitchForm.value.is_migrate_existing
+        }
+      )
+      policySwitchOpen.value = false
+      toast.add({
+        title: t('policySwitch.taskCreated'),
+        description: t('policySwitch.taskId', { id: data.id }),
+        icon: 'i-lucide-check-circle',
+        color: 'success'
+      })
+      fetchDirectory(currentPath.value)
+    } catch (e: unknown) {
+      showApiError(e as AxiosError<ApiErrorResponse>, t('policySwitch.failed'))
+    }
+  })
 }
 
 // Property detail modal
 const propertyModalOpen = ref(false)
-const propertyLoading = ref(false)
 const propertyDetail = ref<ObjectPropertyDetail | null>(null)
 
 async function openPropertyModal(obj: FileObject) {
   propertyDetail.value = null
   propertyModalOpen.value = true
-  propertyLoading.value = true
-  try {
-    const { data } = await api.get<ObjectPropertyDetail>(`/api/v1/object/property/${obj.id}/detail`)
-    propertyDetail.value = data
-  } catch (e: unknown) {
-    showApiError(e as AxiosError<ApiErrorResponse>, t('errors.fetchFailed'))
-    propertyModalOpen.value = false
-  } finally {
-    propertyLoading.value = false
-  }
+  await indexActions.run('open-property', async () => {
+    try {
+      const { data } = await api.get<ObjectPropertyDetail>(`/api/v1/object/property/${obj.id}/detail`)
+      propertyDetail.value = data
+    } catch (e: unknown) {
+      showApiError(e as AxiosError<ApiErrorResponse>, t('errors.fetchFailed'))
+      propertyModalOpen.value = false
+    }
+  })
 }
 
 // Object picker for copy/move
@@ -857,37 +965,39 @@ function openMoveTo(obj: FileObject) {
 async function confirmCopyMove(selected: { id: string, name: string, path: string }[]) {
   if (!selected.length) return
   const dstId = selected[0].id
-  try {
-    if (pickerMode.value === 'copy') {
-      await api.post('/api/v1/object/copy', {
-        src_ids: pickerSourceIds.value,
-        dst_id: dstId
+  await indexActions.run('confirm-copy-move', async () => {
+    try {
+      if (pickerMode.value === 'copy') {
+        await api.post('/api/v1/object/copy', {
+          src_ids: pickerSourceIds.value,
+          dst_id: dstId
+        })
+      } else {
+        await api.patch('/api/v1/object/', {
+          src_ids: pickerSourceIds.value,
+          dst_id: dstId
+        })
+      }
+      pickerOpen.value = false
+      clearSelection()
+      fetchDirectory(currentPath.value)
+      storageStore.refresh()
+      toast.add({
+        title: pickerMode.value === 'copy'
+          ? t('objectPicker.copySuccess')
+          : t('objectPicker.moveSuccess'),
+        icon: 'i-lucide-check-circle',
+        color: 'success'
       })
-    } else {
-      await api.patch('/api/v1/object/', {
-        src_ids: pickerSourceIds.value,
-        dst_id: dstId
-      })
+    } catch (e: unknown) {
+      showApiError(
+        e as AxiosError<ApiErrorResponse>,
+        pickerMode.value === 'copy'
+          ? t('objectPicker.copyFailed')
+          : t('objectPicker.moveFailed')
+      )
     }
-    pickerOpen.value = false
-    clearSelection()
-    fetchDirectory(currentPath.value)
-    storageStore.refresh()
-    toast.add({
-      title: pickerMode.value === 'copy'
-        ? t('objectPicker.copySuccess')
-        : t('objectPicker.moveSuccess'),
-      icon: 'i-lucide-check-circle',
-      color: 'success'
-    })
-  } catch (e: unknown) {
-    showApiError(
-      e as AxiosError<ApiErrorResponse>,
-      pickerMode.value === 'copy'
-        ? t('objectPicker.copyFailed')
-        : t('objectPicker.moveFailed')
-    )
-  }
+  })
 }
 
 // File upload
@@ -1265,7 +1375,7 @@ function onGridItemDblClick(obj: FileObject) {
   if (obj.type === 'folder') {
     navigateToFolder(obj.name)
   } else {
-    fileOpen.openFile({ id: obj.id, name: obj.name, size: obj.size })
+    fileOpen.openFile({ id: obj.id, name: obj.name, size: obj.size }, fileSiblings.value)
   }
 }
 
@@ -1330,7 +1440,7 @@ function onRowSelect(e: Event, row: TableRow<FileObject>) {
   if (row.original.type === 'folder') {
     navigateToFolder(row.original.name)
   } else {
-    fileOpen.openFile({ id: row.original.id, name: row.original.name, size: row.original.size })
+    fileOpen.openFile({ id: row.original.id, name: row.original.name, size: row.original.size }, fileSiblings.value)
   }
 }
 
@@ -1733,8 +1843,10 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
               </template>
             </UTable>
             <!-- Grid view -->
-            <div
+            <TransitionGroup
               v-else
+              tag="div"
+              name="file-grid"
               class="file-grid-container grid gap-1 p-2 content-start"
               style="grid-template-columns: repeat(auto-fill, minmax(110px, 1fr))"
             >
@@ -1758,7 +1870,7 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
               <div
                 v-for="(obj, index) in sortedObjects"
                 :key="obj.id"
-                class="file-grid-item group relative flex flex-col items-center gap-1 p-3 rounded-lg cursor-default select-none transition-colors"
+                class="file-grid-item file-grid-item-card group relative flex flex-col items-center gap-1 p-3 rounded-lg cursor-default select-none transition-colors"
                 :class="[
                   fileDragDrop.dropTargetId.value === obj.id
                     ? 'bg-primary/20 ring-2 ring-primary'
@@ -1799,6 +1911,19 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
                   {{ formatSize(obj.size) }}
                 </span>
               </div>
+            </TransitionGroup>
+            <div
+              v-if="directoryHasMore"
+              class="flex justify-center py-2"
+            >
+              <UButton
+                :label="t('file.loadMore')"
+                color="neutral"
+                variant="ghost"
+                :loading="loadingMore"
+                :disabled="loadingMore"
+                @click="loadMoreDirectory"
+              />
             </div>
           </div>
         </UContextMenu>
@@ -1854,6 +1979,7 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
       <UButton
         :label="t('deleteModal.moveToTrash')"
         color="primary"
+        :loading="indexActions.isRunning('delete-objects')"
         @click="confirmDelete"
       />
     </template>
@@ -1885,6 +2011,7 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
       <UButton
         :label="t('common.create')"
         :disabled="!createName.trim()"
+        :loading="indexActions.isRunning('create-object')"
         @click="confirmCreate"
       />
     </template>
@@ -1916,6 +2043,7 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
       <UButton
         :label="t('common.confirm')"
         :disabled="!renameNewName.trim()"
+        :loading="indexActions.isRunning('rename-object')"
         @click="confirmRename"
       />
     </template>
@@ -2035,7 +2163,7 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
         />
         <UButton
           :label="t('shareModal.create')"
-          :loading="shareCreating"
+          :loading="indexActions.isRunning('create-share')"
           @click="confirmShare"
         />
       </template>
@@ -2064,7 +2192,7 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
             v-model="policySwitchForm.policy_id"
             :items="policySwitchPolicies.map(p => ({ label: p.name, value: p.id }))"
             value-key="value"
-            :loading="policySwitchLoading"
+            :loading="indexActions.isRunning('policy-switch-open')"
             :placeholder="t('policySwitch.selectPolicy')"
             class="w-full"
           />
@@ -2087,7 +2215,7 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
       />
       <UButton
         :label="t('common.confirm')"
-        :loading="policySwitchSubmitting"
+        :loading="indexActions.isRunning('policy-switch-submit')"
         :disabled="!policySwitchForm.policy_id"
         @click="confirmPolicySwitch"
       />
@@ -2103,7 +2231,7 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
   >
     <template #body>
       <div
-        v-if="propertyLoading"
+        v-if="indexActions.isRunning('open-property')"
         class="flex justify-center py-8"
       >
         <UIcon
@@ -2229,6 +2357,7 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
     :title="pickerMode === 'copy' ? t('objectPicker.copyTitle') : t('objectPicker.moveTitle')"
     type="folder"
     :exclude-ids="pickerMode === 'move' ? pickerSourceIds : []"
+    :confirm-loading="indexActions.isRunning('confirm-copy-move')"
     @confirm="confirmCopyMove"
   />
 
@@ -2456,3 +2585,34 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
   <FileViewer />
   <AppChooser />
 </template>
+
+<style scoped>
+.file-grid-item-card {
+  transition: transform 120ms ease, box-shadow 160ms ease;
+}
+
+.file-grid-enter-active,
+.file-grid-leave-active,
+.file-grid-move {
+  transition: all 180ms ease;
+}
+
+.file-grid-enter-from {
+  opacity: 0;
+  transform: scale(0.97) translateY(4px);
+}
+
+.file-grid-leave-to {
+  opacity: 0;
+  transform: scale(0.97) translateY(-4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .file-grid-item-card,
+  .file-grid-enter-active,
+  .file-grid-leave-active,
+  .file-grid-move {
+    transition: none;
+  }
+}
+</style>

@@ -6,6 +6,7 @@ import { setLocale } from '../i18n'
 import api from '../utils/api'
 import { useAuthStore } from '../stores/auth'
 import { useSiteConfigStore } from '../stores/siteConfig'
+import { getApiErrorMessage } from '../utils/apiErrors'
 
 const router = useRouter()
 const route = useRoute()
@@ -242,7 +243,7 @@ onMounted(async () => {
   const magicToken = route.query.magic_token as string | undefined
   if (magicToken) {
     magicLinkVerifying.value = true
-    try {
+   try {
       const { data } = await api.post('/api/v1/user/session', {
         provider: 'magic_link',
         identifier: magicToken
@@ -251,8 +252,10 @@ onMounted(async () => {
       router.push('/home')
       return
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { detail?: string } }; message?: string }
-      error.value = err.response?.data?.detail || t('session.magicLinkLoginFailed')
+      error.value = getApiErrorMessage(e, t('session.magicLinkLoginFailed'), {
+        410: t('session.magicLinkInvalidToken'),
+        400: t('errors.invalidParams')
+      })
     } finally {
       magicLinkVerifying.value = false
     }
@@ -292,7 +295,7 @@ async function submitLogin(email: string, password: string, otp?: string) {
     auth.setSession(data)
     router.push('/home')
   } catch (e: unknown) {
-    const err = e as { response?: { status?: number; data?: { detail?: unknown } }; message?: string }
+    const err = e as { response?: { status?: number } }
 
     if (err.response?.status === 428) {
       pendingCredentials.value = { email, password }
@@ -302,15 +305,15 @@ async function submitLogin(email: string, password: string, otp?: string) {
       return
     }
 
-    const detail = err.response?.data?.detail
     if (err.response?.status === 403) {
       error.value = t('session.accountBanned')
-    } else if (typeof detail === 'string') {
-      error.value = detail
-    } else if (Array.isArray(detail)) {
-      error.value = detail[0]?.msg || t('errors.loginFailed')
+    } else if (err.response?.status) {
+      error.value = getApiErrorMessage(e, t('errors.loginFailed'), {
+        403: t('session.accountBanned'),
+        400: t('errors.invalidParams'),
+      })
     } else {
-      error.value = err.message || t('errors.loginFailedCheck')
+      error.value = getApiErrorMessage(e, t('errors.loginFailedCheck'))
     }
 
     if (tfaRequired.value) {
@@ -372,13 +375,10 @@ async function onRegisterSubmit(payload: FormSubmitEvent<RegisterSchema>) {
       mode.value = 'login'
     }
   } catch (e: unknown) {
-    const err = e as { response?: { data?: { detail?: unknown } }; message?: string }
-    const detail = err.response?.data?.detail
-    if (typeof detail === 'string') {
-      error.value = detail
-    } else {
-      error.value = t('session.registerFailed')
-    }
+    error.value = getApiErrorMessage(e, t('session.registerFailed'), {
+      409: t('errors.conflict'),
+      400: t('errors.invalidParams')
+    })
     resetCaptcha()
   } finally {
     loading.value = false
@@ -396,8 +396,10 @@ async function onMagicLinkSubmit(payload: FormSubmitEvent<MagicLinkSchema>) {
     })
     magicLinkSent.value = true
   } catch (e: unknown) {
-    const err = e as { response?: { data?: { detail?: string } }; message?: string }
-    error.value = err.response?.data?.detail || t('errors.loginFailed')
+    error.value = getApiErrorMessage(e, t('errors.loginFailed'), {
+      400: t('errors.invalidParams'),
+      429: t('errors.fetchFailed')
+    })
   } finally {
     loading.value = false
   }

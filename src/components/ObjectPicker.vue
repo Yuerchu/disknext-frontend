@@ -2,9 +2,10 @@
 import { h, ref, watch, computed, resolveComponent } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { TableColumn, BreadcrumbItem } from '@nuxt/ui'
-import type { AxiosError } from 'axios'
 import { getFileIcon } from '../composables/useFileOpen'
+import { useAsyncAction } from '../composables/useAsyncAction'
 import api from '../utils/api'
+import { getApiErrorMessage } from '../utils/apiErrors'
 
 const UIcon = resolveComponent('UIcon')
 
@@ -30,6 +31,11 @@ interface DirectoryResponse {
     max_size: number
     file_type: string[] | null
   }
+  total?: number
+  limit?: number
+  offset?: number
+  has_more?: boolean
+  next_offset?: number
 }
 
 interface TreeNode {
@@ -49,11 +55,13 @@ const props = withDefaults(defineProps<{
   type?: 'file' | 'folder'
   multiple?: boolean
   excludeIds?: string[]
+  confirmLoading?: boolean
 }>(), {
   title: '',
   type: 'folder',
   multiple: false,
-  excludeIds: () => []
+  excludeIds: () => [],
+  confirmLoading: false
 })
 
 const emit = defineEmits<{
@@ -63,6 +71,7 @@ const emit = defineEmits<{
 
 const { t, locale } = useI18n()
 const toast = useToast()
+const pickerActions = useAsyncAction()
 
 // Tree state
 const treeItems = ref<TreeNode[]>([])
@@ -74,10 +83,76 @@ const panelLoading = ref(false)
 const panelObjects = ref<FileObject[]>([])
 const panelDirId = ref('')
 const panelPath = ref('')
+const panelLoadingMore = ref(false)
+const panelHasMore = ref(false)
+const panelOffset = ref(0)
+const panelPaginationEnabled = ref(false)
+const OBJECT_PICKER_PAGE_SIZE = 200
 
 // New folder inline
 const creatingFolder = ref(false)
 const newFolderName = ref('')
+
+function getDirectoryPageMeta(
+  data: DirectoryResponse,
+  requestOffset: number,
+  requestLimit: number
+) {
+  const hasMeta =
+    data.total !== undefined ||
+    data.limit !== undefined ||
+    data.offset !== undefined ||
+    data.has_more !== undefined ||
+    data.next_offset !== undefined
+
+  const actualOffset = data.offset ?? requestOffset
+  const fetchedCount = data.objects?.length ?? 0
+
+  const hasMore = data.has_more !== undefined
+    ? data.has_more
+    : data.total !== undefined
+      ? (actualOffset + fetchedCount < data.total)
+      : data.next_offset !== undefined
+        ? data.next_offset > actualOffset
+        : false
+
+  const nextOffset = data.next_offset !== undefined
+    ? data.next_offset
+    : actualOffset + requestLimit
+
+  return { hasMeta, hasMore, nextOffset: Math.max(nextOffset, requestOffset) }
+}
+
+function mergeObjects(existing: FileObject[], incoming: FileObject[]) {
+  const dedupe = new Map<string, FileObject>()
+  existing.forEach((item) => dedupe.set(item.id, item))
+  incoming.forEach((item) => dedupe.set(item.id, item))
+  return Array.from(dedupe.values())
+}
+
+async function fetchDirectoryPage(url: string, append = false) {
+  const requestOffset = append ? panelOffset.value : 0
+  const params = panelPaginationEnabled.value || append
+    ? { offset: requestOffset, limit: OBJECT_PICKER_PAGE_SIZE }
+    : undefined
+  const { data } = await api.get<DirectoryResponse>(url, params ? { params } : undefined)
+
+  if (data.total !== undefined || data.has_more !== undefined || data.next_offset !== undefined) {
+    panelPaginationEnabled.value = true
+  }
+
+  const { hasMeta, hasMore, nextOffset } = getDirectoryPageMeta(data, requestOffset, OBJECT_PICKER_PAGE_SIZE)
+  panelHasMore.value = hasMeta && hasMore
+  panelOffset.value = panelHasMore.value ? nextOffset : 0
+
+  if (append) {
+    panelObjects.value = mergeObjects(panelObjects.value, data.objects)
+  } else {
+    panelObjects.value = data.objects
+  }
+
+  return data
+}
 
 function createTreeNode(name: string, id: string, path: string): TreeNode {
   return {
@@ -91,8 +166,10 @@ function createTreeNode(name: string, id: string, path: string): TreeNode {
 }
 
 async function loadRootDirectory() {
+  panelHasMore.value = false
+  panelOffset.value = 0
   try {
-    const { data } = await api.get<DirectoryResponse>('/api/v1/directory/')
+    const data = await fetchDirectoryPage('/api/v1/directory/')
     const folders = data.objects.filter(o => o.type === 'folder')
     const rootNode: TreeNode = {
       label: t('objectPicker.myFiles'),
@@ -109,9 +186,15 @@ async function loadRootDirectory() {
     selectedTreeNode.value = rootNode
     panelDirId.value = data.id
     panelPath.value = ''
-    panelObjects.value = data.objects
-  } catch {
+  } catch (e: unknown) {
+    const message = getApiErrorMessage(e, t('errors.fetchFailed'))
     treeItems.value = []
+    toast.add({
+      title: t('errors.fetchFailed'),
+      icon: 'i-lucide-circle-x',
+      description: message,
+      color: 'error'
+    })
   }
 }
 
@@ -125,9 +208,10 @@ async function loadChildren(node: TreeNode) {
     )
     node._loaded = true
     return data
-  } catch {
+  } catch (e: unknown) {
     toast.add({
       title: t('objectPicker.loading'),
+      description: getApiErrorMessage(e, t('objectPicker.loading')),
       icon: 'i-lucide-circle-x',
       color: 'error'
     })
@@ -155,11 +239,12 @@ async function onTreeSelect(_e: unknown, item: unknown) {
 
   // Load right panel content
   panelLoading.value = true
+  panelHasMore.value = false
+  panelOffset.value = 0
   try {
     const url = node._path ? `/api/v1/directory/${node._path}` : '/api/v1/directory/'
-    const { data } = await api.get<DirectoryResponse>(url)
+    const data = await fetchDirectoryPage(url)
     panelDirId.value = data.id
-    panelObjects.value = data.objects
 
     // Also update tree children if not loaded
     if (!node._loaded) {
@@ -169,7 +254,13 @@ async function onTreeSelect(_e: unknown, item: unknown) {
       )
       node._loaded = true
     }
-  } catch {
+  } catch (e: unknown) {
+    toast.add({
+      title: t('objectPicker.loading'),
+      description: getApiErrorMessage(e, t('objectPicker.loading')),
+      icon: 'i-lucide-circle-x',
+      color: 'error'
+    })
     panelObjects.value = []
   } finally {
     panelLoading.value = false
@@ -281,17 +372,46 @@ function onPanelRowSelect(_e: Event, row: { original: FileObject }) {
 
 async function navigateToPath(path: string, dirId: string) {
   panelLoading.value = true
+  panelHasMore.value = false
+  panelOffset.value = 0
   panelPath.value = path
   panelDirId.value = dirId
   try {
-    const { data } = await api.get<DirectoryResponse>(`/api/v1/directory/${path}`)
+    const data = await fetchDirectoryPage(`/api/v1/directory/${path}`)
     panelDirId.value = data.id
-    panelObjects.value = data.objects
     selectedTreeNode.value = { label: path.split('/').pop() || '', _id: data.id, _path: path, _loaded: false, children: [], icon: 'i-lucide-folder' }
-  } catch {
+  } catch (e: unknown) {
+    const message = getApiErrorMessage(e, t('objectPicker.loading'))
     panelObjects.value = []
+    toast.add({
+      title: t('objectPicker.loading'),
+      description: message,
+      icon: 'i-lucide-circle-x',
+      color: 'error'
+    })
   } finally {
     panelLoading.value = false
+  }
+}
+
+async function loadMorePanelDirectory() {
+  if (!panelHasMore.value || panelLoadingMore.value) return
+  if (!selectedTreeNode.value) return
+
+  panelLoadingMore.value = true
+  try {
+    const url = panelPath.value ? `/api/v1/directory/${panelPath.value}` : '/api/v1/directory/'
+    await fetchDirectoryPage(url, true)
+  } catch (e: unknown) {
+    const message = getApiErrorMessage(e, t('objectPicker.loading'))
+    toast.add({
+      title: t('objectPicker.loading'),
+      description: message,
+      icon: 'i-lucide-circle-x',
+      color: 'error'
+    })
+  } finally {
+    panelLoadingMore.value = false
   }
 }
 
@@ -299,27 +419,28 @@ async function navigateToPath(path: string, dirId: string) {
 async function confirmNewFolder() {
   const name = newFolderName.value.trim()
   if (!name) return
-  try {
-    await api.post('/api/v1/directory/', {
-      parent_id: panelDirId.value,
-      name
-    })
-    creatingFolder.value = false
-    newFolderName.value = ''
-    // Refresh current panel and tree node
-    if (selectedTreeNode.value) {
-      await onTreeSelect(null, selectedTreeNode.value)
+  await pickerActions.run('create-folder', async () => {
+    try {
+      await api.post('/api/v1/directory/', {
+        parent_id: panelDirId.value,
+        name
+      })
+      creatingFolder.value = false
+      newFolderName.value = ''
+      // Refresh current panel and tree node
+      if (selectedTreeNode.value) {
+        await onTreeSelect(null, selectedTreeNode.value)
+      }
+    } catch (e: unknown) {
+      const detail = getApiErrorMessage(e, t('objectPicker.createFolderFailed'))
+      toast.add({
+        title: t('objectPicker.createFolderFailed'),
+        description: detail,
+        icon: 'i-lucide-circle-x',
+        color: 'error'
+      })
     }
-  } catch (e: unknown) {
-    const err = e as AxiosError<{ detail?: string }>
-    const detail = err.response?.data?.detail
-    toast.add({
-      title: t('objectPicker.createFolderFailed'),
-      description: typeof detail === 'string' ? detail : undefined,
-      icon: 'i-lucide-circle-x',
-      color: 'error'
-    })
-  }
+  })
 }
 
 // Confirm selection
@@ -448,45 +569,69 @@ watch(() => props.open, (val) => {
               </template>
             </UTable>
           </div>
+          <div
+            v-if="panelHasMore"
+            class="px-3 py-2 border-t border-default"
+          >
+            <UButton
+              :label="t('objectPicker.loadMore')"
+              icon="i-lucide-plus"
+              size="sm"
+              class="w-full justify-center"
+              color="neutral"
+              variant="ghost"
+              :loading="panelLoadingMore"
+              :disabled="panelLoadingMore"
+              @click="loadMorePanelDirectory"
+            />
+          </div>
 
           <!-- New folder -->
           <div class="px-3 py-2 border-t border-default shrink-0">
-            <div
-              v-if="creatingFolder"
-              class="flex items-center gap-2"
+            <Transition
+              name="picker-folder"
+              mode="out-in"
             >
-              <UInput
-                v-model="newFolderName"
-                autofocus
-                size="sm"
-                class="flex-1"
-                :placeholder="t('objectPicker.newFolderPlaceholder')"
-                @keydown.enter="confirmNewFolder"
-                @keydown.escape="creatingFolder = false"
-              />
+              <div
+                v-if="creatingFolder"
+                key="creating-folder"
+                class="flex items-center gap-2"
+              >
+                <UInput
+                  v-model="newFolderName"
+                  autofocus
+                  size="sm"
+                  class="flex-1"
+                  :placeholder="t('objectPicker.newFolderPlaceholder')"
+                  @keydown.enter="confirmNewFolder"
+                  @keydown.escape="creatingFolder = false"
+                />
+                <UButton
+                  icon="i-lucide-check"
+                  size="sm"
+                  :loading="pickerActions.isRunning('create-folder')"
+                  :disabled="!newFolderName.trim() || pickerActions.isRunning('create-folder')"
+                  @click="confirmNewFolder"
+                />
+                <UButton
+                  icon="i-lucide-x"
+                  size="sm"
+                  color="neutral"
+                  variant="ghost"
+                  @click="creatingFolder = false"
+                />
+              </div>
               <UButton
-                icon="i-lucide-check"
-                size="sm"
-                :disabled="!newFolderName.trim()"
-                @click="confirmNewFolder"
-              />
-              <UButton
-                icon="i-lucide-x"
+                v-else
+                key="toggle-folder"
+                :label="t('objectPicker.newFolder')"
+                icon="i-lucide-folder-plus"
                 size="sm"
                 color="neutral"
                 variant="ghost"
-                @click="creatingFolder = false"
+                @click="creatingFolder = true; newFolderName = ''"
               />
-            </div>
-            <UButton
-              v-else
-              :label="t('objectPicker.newFolder')"
-              icon="i-lucide-folder-plus"
-              size="sm"
-              color="neutral"
-              variant="ghost"
-              @click="creatingFolder = true; newFolderName = ''"
-            />
+            </Transition>
           </div>
         </div>
       </div>
@@ -501,9 +646,23 @@ watch(() => props.open, (val) => {
       />
       <UButton
         :label="t('objectPicker.confirm')"
-        :disabled="!canConfirm"
+        :disabled="!canConfirm || confirmLoading || pickerActions.isRunning('create-folder')"
+        :loading="confirmLoading || pickerActions.isRunning('create-folder')"
         @click="onConfirm"
       />
     </template>
   </UModal>
 </template>
+
+<style scoped>
+.picker-folder-enter-active,
+.picker-folder-leave-active {
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.picker-folder-enter-from,
+.picker-folder-leave-to {
+  opacity: 0;
+  transform: translateY(3px);
+}
+</style>

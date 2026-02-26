@@ -4,11 +4,11 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { setLocale } from '../i18n'
 import type { DropdownMenuItem, TableColumn } from '@nuxt/ui'
-import type { AxiosError } from 'axios'
 import { useAdminStore } from '../stores/admin'
 import { useUserStore } from '../stores/user'
 import { useAuthStore } from '../stores/auth'
 import api from '../utils/api'
+import { getApiErrorMessage } from '../utils/apiErrors'
 
 const UBadge = resolveComponent('UBadge')
 const UIcon = resolveComponent('UIcon')
@@ -88,8 +88,10 @@ async function fetchShares() {
     shares.value = data.items
     total.value = data.count
   } catch (e: unknown) {
-    const err = e as AxiosError<{ detail?: string }>
-    const message = err?.response?.data?.detail || t('myShares.loadFailed')
+    const message = getApiErrorMessage(e, t('myShares.loadFailed'), {
+      404: t('errors.notFound'),
+      403: t('errors.fetchFailed')
+    })
     toast.add({
       title: t('myShares.loadFailed'),
       description: message,
@@ -131,10 +133,13 @@ async function confirmDelete() {
     deleteModalOpen.value = false
     fetchShares()
   } catch (e: unknown) {
-    const err = e as AxiosError<{ detail?: string }>
+    const message = getApiErrorMessage(e, t('myShares.deleteFailed'), {
+      404: t('errors.notFound'),
+      403: t('errors.fetchFailed')
+    })
     toast.add({
       title: t('myShares.deleteFailed'),
-      description: err.response?.data?.detail || '',
+      description: message,
       icon: 'i-lucide-circle-x',
       color: 'error'
     })
