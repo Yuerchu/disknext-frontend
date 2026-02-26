@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Line } from 'vue-chartjs'
 import {
   Chart as ChartJS,
+  LineController,
   CategoryScale,
   LinearScale,
   PointElement,
@@ -13,9 +13,10 @@ import {
   Legend,
   Filler
 } from 'chart.js'
+import type { ChartData, ChartOptions } from 'chart.js'
 import api from '../../utils/api'
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
+ChartJS.register(LineController, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
 
 const { t } = useI18n()
 
@@ -46,6 +47,8 @@ interface AdminSummary {
 const summary = ref<AdminSummary | null>(null)
 const loading = ref(true)
 const error = ref('')
+const canvasRef = ref<HTMLCanvasElement | null>(null)
+let chartInstance: ChartJS | null = null
 
 onMounted(async () => {
   try {
@@ -58,6 +61,11 @@ onMounted(async () => {
   }
 })
 
+onBeforeUnmount(() => {
+  chartInstance?.destroy()
+  chartInstance = null
+})
+
 const generatedAgo = computed(() => {
   if (!summary.value?.metrics_summary.generated_at) return ''
   const diff = Date.now() - new Date(summary.value.metrics_summary.generated_at).getTime()
@@ -68,7 +76,7 @@ const generatedAgo = computed(() => {
   return t('admin.generatedAgoDays', { n: Math.floor(hours / 24) })
 })
 
-const chartData = computed(() => {
+const chartData = computed<ChartData<'line'> | null>(() => {
   if (!summary.value) return null
   const m = summary.value.metrics_summary
   return {
@@ -102,16 +110,16 @@ const chartData = computed(() => {
   }
 })
 
-const chartOptions = {
+const chartOptions: ChartOptions<'line'> = {
   responsive: true,
   maintainAspectRatio: false,
   interaction: {
     intersect: false,
-    mode: 'index' as const
+    mode: 'index'
   },
   plugins: {
     legend: {
-      position: 'bottom' as const
+      position: 'bottom'
     }
   },
   scales: {
@@ -120,6 +128,19 @@ const chartOptions = {
     }
   }
 }
+
+function createChart() {
+  if (!canvasRef.value || !chartData.value) return
+  chartInstance?.destroy()
+  chartInstance = new ChartJS(canvasRef.value, {
+    type: 'line',
+    data: chartData.value,
+    options: chartOptions
+  })
+}
+
+watch(chartData, () => createChart())
+watch(canvasRef, () => createChart())
 
 const statsItems = computed(() => {
   if (!summary.value) return []
@@ -175,10 +196,7 @@ function formatDate(iso: string): string {
             v-if="chartData"
             class="h-72"
           >
-            <Line
-              :data="chartData"
-              :options="chartOptions"
-            />
+            <canvas ref="canvasRef" />
           </div>
         </UCard>
 
