@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { h, computed, ref, watch, onMounted, onUnmounted, resolveComponent } from 'vue'
+import { h, computed, ref, watch, onMounted, onUnmounted, nextTick, resolveComponent } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { setLocale } from '../i18n'
@@ -14,6 +14,7 @@ import type { UploadTask, UploadSession } from '../stores/upload'
 import ObjectPicker from '../components/ObjectPicker.vue'
 import FileViewer from '../components/viewers/FileViewer.vue'
 import AppChooser from '../components/AppChooser.vue'
+import FileInfoSidebar from '../components/FileInfoSidebar.vue'
 import { useAreaSelection } from '../composables/useAreaSelection'
 import { useFileDragDrop } from '../composables/useFileDragDrop'
 import { useFileOpen, getFileIcon } from '../composables/useFileOpen'
@@ -222,6 +223,8 @@ function getDirectoryPageMeta(
   return { hasMeta, hasMore, nextOffset: Math.max(nextOffset, requestOffset) }
 }
 
+const thumbErrors = ref<Record<string, boolean>>({})
+
 async function fetchDirectory(path: string, append = false) {
   if (append && loadingMore.value) return
 
@@ -232,6 +235,7 @@ async function fetchDirectory(path: string, append = false) {
     loading.value = true
     directoryOffset.value = 0
     directoryHasMore.value = false
+    thumbErrors.value = {}
   }
 
   const requestOffset = append ? directoryOffset.value : 0
@@ -460,6 +464,35 @@ function breadcrumbDropPath(index: number): string {
   return pathSegments.value.slice(0, index).join('/')
 }
 
+// Breadcrumb edit mode
+const breadcrumbEditing = ref(false)
+const breadcrumbEditPath = ref('')
+const breadcrumbEditRef = ref<HTMLElement | null>(null)
+
+function enterBreadcrumbEdit() {
+  breadcrumbEditPath.value = currentPath.value
+  breadcrumbEditing.value = true
+  nextTick(() => {
+    const el = breadcrumbEditRef.value
+    const inputEl = el instanceof HTMLInputElement ? el : el?.querySelector?.('input')
+    if (inputEl) {
+      inputEl.focus()
+      inputEl.select()
+    }
+  })
+}
+
+function confirmBreadcrumbEdit() {
+  breadcrumbEditing.value = false
+  const raw = breadcrumbEditPath.value.trim().replace(/^\/+|\/+$/g, '')
+  if (raw === currentPath.value) return
+  router.push(raw ? `/home/${raw}` : '/home')
+}
+
+function cancelBreadcrumbEdit() {
+  breadcrumbEditing.value = false
+}
+
 // Table meta for selected row styling + drop target highlight
 const tableMeta = computed(() => ({
   class: {
@@ -527,18 +560,25 @@ function getEmptyAreaItems(): ContextMenuItem[][] {
     ],
     [
       {
-        label: t('contextMenu.createFolder'),
-        icon: 'i-lucide-folder-plus',
-        onSelect() {
-          openCreateModal('folder')
-        }
-      },
-      {
-        label: t('contextMenu.createFile'),
-        icon: 'i-lucide-file-plus',
-        onSelect() {
-          openCreateModal('file')
-        }
+        label: t('contextMenu.new'),
+        icon: 'i-lucide-plus',
+        children: [
+          {
+            label: t('contextMenu.createFolder'),
+            icon: 'i-lucide-folder-plus',
+            kbds: ['meta', 'shift', 'N'],
+            onSelect() {
+              openCreateModal('folder')
+            }
+          },
+          {
+            label: t('contextMenu.createFile'),
+            icon: 'i-lucide-file-plus',
+            onSelect() {
+              openCreateModal('file')
+            }
+          }
+        ]
       }
     ],
     [
@@ -559,6 +599,7 @@ function getFolderItems(obj: FileObject): ContextMenuItem[][] {
       {
         label: t('common.open'),
         icon: 'i-lucide-folder-open',
+        kbds: ['Enter'],
         onSelect() {
           navigateToFolder(obj.name)
         }
@@ -570,6 +611,7 @@ function getFolderItems(obj: FileObject): ContextMenuItem[][] {
       {
         label: t('common.rename'),
         icon: 'i-lucide-pencil',
+        kbds: ['F2'],
         onSelect() {
           renameObject(obj)
         }
@@ -587,6 +629,7 @@ function getFolderItems(obj: FileObject): ContextMenuItem[][] {
         label: t('common.delete'),
         icon: 'i-lucide-trash-2',
         color: 'error' as const,
+        kbds: ['Del'],
         onSelect() {
           deleteObjects([obj.id], obj.name)
         }
@@ -598,7 +641,7 @@ function getFolderItems(obj: FileObject): ContextMenuItem[][] {
 function getFileItems(obj: FileObject): ContextMenuItem[][] {
   return [
     [
-      { label: t('common.open'), icon: 'i-lucide-external-link', onSelect() { fileOpen.openFile({ id: obj.id, name: obj.name, size: obj.size }, fileSiblings.value) } },
+      { label: t('common.open'), icon: 'i-lucide-external-link', kbds: ['Enter'], onSelect() { fileOpen.openFile({ id: obj.id, name: obj.name, size: obj.size }, fileSiblings.value) } },
       {
         label: t('contextMenu.openWith'),
         icon: 'i-lucide-app-window',
@@ -610,6 +653,7 @@ function getFileItems(obj: FileObject): ContextMenuItem[][] {
       {
         label: t('common.rename'),
         icon: 'i-lucide-pencil',
+        kbds: ['F2'],
         onSelect() {
           renameObject(obj)
         }
@@ -628,6 +672,7 @@ function getFileItems(obj: FileObject): ContextMenuItem[][] {
         label: t('common.delete'),
         icon: 'i-lucide-trash-2',
         color: 'error' as const,
+        kbds: ['Del'],
         onSelect() {
           deleteObjects([obj.id], obj.name)
         }
@@ -1264,18 +1309,6 @@ function confirmParallelCount() {
 const uploadSettingsItems = computed<DropdownMenuItem[][]>(() => [
   [
     {
-      label: t('upload.hideCompleted'),
-      icon: 'i-lucide-eye-off',
-      type: 'checkbox' as const,
-      checked: upload.hideCompleted,
-      onUpdateChecked(checked: boolean) {
-        upload.setHideCompleted(checked)
-      },
-      onSelect(e: Event) { e.preventDefault() },
-    },
-  ],
-  [
-    {
       label: t('upload.sortOrder'),
       icon: 'i-lucide-arrow-up-down',
       children: [
@@ -1460,6 +1493,42 @@ function handleKeydown(e: KeyboardEvent) {
     sortedObjects.value.forEach(obj => { newSel[obj.id] = true })
     rowSelection.value = newSel
   }
+
+  // Delete / Backspace: delete selected files
+  if ((e.key === 'Delete' || e.key === 'Backspace') && isSelectionMode.value) {
+    e.preventDefault()
+    const ids = selectedObjects.value.map(o => o.id)
+    deleteObjects(ids, t('selection.selectedCount', { n: ids.length }))
+  }
+
+  // F2: rename (single selection only)
+  if (e.key === 'F2' && selectedObjects.value.length === 1) {
+    e.preventDefault()
+    renameObject(selectedObjects.value[0])
+  }
+
+  // Enter: open file or enter folder (single selection only)
+  if (e.key === 'Enter' && selectedObjects.value.length === 1) {
+    e.preventDefault()
+    const obj = selectedObjects.value[0]
+    if (obj.type === 'folder') {
+      navigateToFolder(obj.name)
+    } else {
+      fileOpen.openFile({ id: obj.id, name: obj.name, size: obj.size }, fileSiblings.value)
+    }
+  }
+
+  // Ctrl+Shift+N: create new folder
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'N') {
+    e.preventDefault()
+    openCreateModal('folder')
+  }
+
+  // Ctrl+L: edit breadcrumb path
+  if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
+    e.preventDefault()
+    enterBreadcrumbEdit()
+  }
 }
 
 watch(currentPath, (path) => {
@@ -1572,11 +1641,32 @@ async function onBreadcrumbDrop(srcIds: string[], path: string) {
 }
 
 // View mode
-type ViewMode = 'list' | 'grid'
+type ViewMode = 'list' | 'grid' | 'gallery'
 const viewMode = ref<ViewMode>(
   (localStorage.getItem('disknext-view-mode') as ViewMode) || 'list'
 )
 watch(viewMode, (v) => localStorage.setItem('disknext-view-mode', v))
+
+// Info sidebar
+const sidebarOpen = ref(localStorage.getItem('disknext-sidebar-open') === 'true')
+watch(sidebarOpen, (v) => localStorage.setItem('disknext-sidebar-open', v ? 'true' : 'false'))
+const sidebarFile = computed(() => {
+  if (selectedObjects.value.length === 1) return selectedObjects.value[0]
+  return null
+})
+
+// Thumbnail toggle
+const showThumb = ref(localStorage.getItem('disknext-show-thumb') !== 'false')
+watch(showThumb, (v) => localStorage.setItem('disknext-show-thumb', v ? 'true' : 'false'))
+function onThumbError(id: string) {
+  thumbErrors.value[id] = true
+}
+function getThumbUrl(id: string): string {
+  return `/api/v1/file/${id}/thumb`
+}
+function shouldShowThumb(obj: FileObject): boolean {
+  return showThumb.value && obj.thumb && obj.type === 'file' && !thumbErrors.value[obj.id]
+}
 
 const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
   if (upload.tasks.some(t => t.status === 'failed')) return 'error'
@@ -1600,7 +1690,22 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
         <UDashboardNavbar class="sticky top-0 z-20">
           <template #leading>
             <UDashboardSidebarCollapse />
-            <UBreadcrumb :items="breadcrumbItems">
+            <UInput
+              v-if="breadcrumbEditing"
+              ref="breadcrumbEditRef"
+              v-model="breadcrumbEditPath"
+              size="sm"
+              :placeholder="t('nav.myFiles')"
+              class="min-w-48 max-w-md"
+              @keydown.enter="confirmBreadcrumbEdit"
+              @keydown.escape="cancelBreadcrumbEdit"
+              @blur="cancelBreadcrumbEdit"
+            />
+            <UBreadcrumb
+              v-else
+              :items="breadcrumbItems"
+              @dblclick="enterBreadcrumbEdit"
+            >
               <template #item="{ item, index }">
                 <button
                   v-if="index < breadcrumbItems.length - 1"
@@ -1657,7 +1762,30 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
                 :aria-label="t('file.viewGrid')"
                 @click="viewMode = 'grid'"
               />
+              <UButton
+                icon="i-lucide-gallery-horizontal"
+                :color="viewMode === 'gallery' ? 'primary' : 'neutral'"
+                :variant="viewMode === 'gallery' ? 'solid' : 'ghost'"
+                :aria-label="t('file.viewGallery')"
+                @click="viewMode = 'gallery'"
+              />
             </UFieldGroup>
+            <UTooltip :text="showThumb ? t('file.hideThumb') : t('file.showThumb')">
+              <UButton
+                :icon="showThumb ? 'i-lucide-image' : 'i-lucide-image-off'"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                @click="showThumb = !showThumb"
+              />
+            </UTooltip>
+            <UButton
+              icon="i-lucide-panel-right"
+              :color="sidebarOpen ? 'primary' : 'neutral'"
+              :variant="sidebarOpen ? 'soft' : 'ghost'"
+              size="xs"
+              @click="sidebarOpen = !sidebarOpen"
+            />
             <UColorModeButton />
             <UChip
               :color="uploadChipColor"
@@ -1782,9 +1910,27 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
               </div>
             </div>
 
+            <!-- Loading skeleton: Gallery -->
+            <div
+              v-if="loading && viewMode === 'gallery'"
+              class="grid gap-2 p-2 content-start"
+              style="grid-template-columns: repeat(auto-fill, minmax(180px, 1fr))"
+            >
+              <div
+                v-for="i in 12"
+                :key="i"
+                class="rounded-lg overflow-hidden"
+              >
+                <USkeleton class="aspect-square w-full" />
+                <div class="p-2 space-y-1">
+                  <USkeleton class="h-3 w-20" />
+                  <USkeleton class="h-2 w-12" />
+                </div>
+              </div>
+            </div>
             <!-- Loading skeleton: Grid -->
             <div
-              v-if="loading && viewMode === 'grid'"
+              v-else-if="loading && viewMode === 'grid'"
               class="grid gap-1 p-2 content-start"
               style="grid-template-columns: repeat(auto-fill, minmax(110px, 1fr))"
             >
@@ -1827,7 +1973,7 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
             >
               <template #empty>
                 <div class="flex items-center justify-center py-12 text-muted">
-                  <div class="text-center space-y-2">
+                  <div class="text-center space-y-3">
                     <UIcon
                       name="i-lucide-folder-open"
                       class="size-16 mx-auto"
@@ -1838,13 +1984,30 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
                     <p class="text-sm">
                       {{ t('file.dropToUpload') }}
                     </p>
+                    <div class="flex items-center justify-center gap-2 pt-1">
+                      <UButton
+                        :label="t('contextMenu.createFolder')"
+                        icon="i-lucide-folder-plus"
+                        color="neutral"
+                        variant="soft"
+                        size="sm"
+                        @click="openCreateModal('folder')"
+                      />
+                      <UButton
+                        :label="t('contextMenu.uploadFile')"
+                        icon="i-lucide-upload"
+                        color="primary"
+                        size="sm"
+                        @click="triggerFileUpload()"
+                      />
+                    </div>
                   </div>
                 </div>
               </template>
             </UTable>
             <!-- Grid view -->
             <TransitionGroup
-              v-else
+              v-else-if="viewMode === 'grid'"
               tag="div"
               name="file-grid"
               class="file-grid-container grid gap-1 p-2 content-start"
@@ -1854,7 +2017,7 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
                 v-if="sortedObjects.length === 0"
                 class="col-span-full flex items-center justify-center py-12 text-muted"
               >
-                <div class="text-center space-y-2">
+                <div class="text-center space-y-3">
                   <UIcon
                     name="i-lucide-folder-open"
                     class="size-16 mx-auto"
@@ -1865,6 +2028,23 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
                   <p class="text-sm">
                     {{ t('file.dropToUpload') }}
                   </p>
+                  <div class="flex items-center justify-center gap-2 pt-1">
+                    <UButton
+                      :label="t('contextMenu.createFolder')"
+                      icon="i-lucide-folder-plus"
+                      color="neutral"
+                      variant="soft"
+                      size="sm"
+                      @click="openCreateModal('folder')"
+                    />
+                    <UButton
+                      :label="t('contextMenu.uploadFile')"
+                      icon="i-lucide-upload"
+                      color="primary"
+                      size="sm"
+                      @click="triggerFileUpload()"
+                    />
+                  </div>
                 </div>
               </div>
               <div
@@ -1892,18 +2072,47 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
                     @click.stop
                   />
                 </div>
+                <img
+                  v-if="shouldShowThumb(obj)"
+                  :src="getThumbUrl(obj.id)"
+                  :alt="obj.name"
+                  loading="lazy"
+                  class="size-12 rounded object-cover"
+                  @error="onThumbError(obj.id)"
+                >
                 <UIcon
+                  v-else
                   :name="getFileIcon(obj.name, obj.type === 'folder')"
                   :class="obj.type === 'folder' ? 'text-primary' : 'text-muted'"
                   class="size-12"
                 />
-                <span
-                  class="text-xs text-center w-full truncate px-1"
-                  :class="obj.type === 'folder' ? 'font-medium' : ''"
-                  :title="obj.name"
+                <UTooltip
+                  :open-delay="400"
+                  :content="{ side: 'bottom' }"
                 >
-                  {{ obj.name }}
-                </span>
+                  <span
+                    class="text-xs text-center w-full truncate px-1"
+                    :class="obj.type === 'folder' ? 'font-medium' : ''"
+                  >
+                    {{ obj.name }}
+                  </span>
+                  <template #content>
+                    <div class="space-y-1 text-xs max-w-52">
+                      <p class="font-medium break-all">
+                        {{ obj.name }}
+                      </p>
+                      <p
+                        v-if="obj.type === 'file'"
+                        class="text-muted"
+                      >
+                        {{ formatSize(obj.size) }}
+                      </p>
+                      <p class="text-muted">
+                        {{ formatDate(obj.updated_at) }}
+                      </p>
+                    </div>
+                  </template>
+                </UTooltip>
                 <span
                   v-if="obj.type === 'file'"
                   class="text-[10px] text-muted"
@@ -1912,6 +2121,87 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
                 </span>
               </div>
             </TransitionGroup>
+            <!-- Gallery view -->
+            <div
+              v-else
+              class="grid gap-2 p-2 content-start"
+              style="grid-template-columns: repeat(auto-fill, minmax(180px, 1fr))"
+            >
+              <div
+                v-if="sortedObjects.length === 0"
+                class="col-span-full flex items-center justify-center py-12 text-muted"
+              >
+                <div class="text-center space-y-3">
+                  <UIcon
+                    name="i-lucide-image"
+                    class="size-16 mx-auto"
+                  />
+                  <p class="text-lg">
+                    {{ t('file.emptyFolder') }}
+                  </p>
+                  <p class="text-sm">
+                    {{ t('file.dropToUpload') }}
+                  </p>
+                </div>
+              </div>
+              <div
+                v-for="(obj, index) in sortedObjects"
+                :key="obj.id"
+                class="group relative rounded-lg overflow-hidden cursor-default select-none transition-all"
+                :class="[
+                  fileDragDrop.dropTargetId.value === obj.id
+                    ? 'ring-2 ring-primary'
+                    : rowSelection[obj.id]
+                      ? 'ring-2 ring-primary/50'
+                      : 'hover:ring-1 hover:ring-default'
+                ]"
+                @click="onGridItemClick($event, obj, index)"
+                @dblclick="onGridItemDblClick(obj)"
+                @contextmenu="onGridItemContextMenu($event, obj, index)"
+              >
+                <div
+                  class="absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100"
+                  :class="{ '!opacity-100': rowSelection[obj.id] || isSelectionMode }"
+                >
+                  <UCheckbox
+                    :model-value="!!rowSelection[obj.id]"
+                    @update:model-value="toggleGridSelection(obj.id, $event)"
+                    @click.stop
+                  />
+                </div>
+                <div class="aspect-square bg-elevated flex items-center justify-center">
+                  <img
+                    v-if="shouldShowThumb(obj)"
+                    :src="getThumbUrl(obj.id)"
+                    :alt="obj.name"
+                    loading="lazy"
+                    class="w-full h-full object-cover"
+                    @error="onThumbError(obj.id)"
+                  >
+                  <UIcon
+                    v-else
+                    :name="getFileIcon(obj.name, obj.type === 'folder')"
+                    :class="obj.type === 'folder' ? 'text-primary' : 'text-muted'"
+                    class="size-16"
+                  />
+                </div>
+                <div class="p-2 bg-default">
+                  <p
+                    class="text-xs truncate"
+                    :class="obj.type === 'folder' ? 'font-medium' : ''"
+                    :title="obj.name"
+                  >
+                    {{ obj.name }}
+                  </p>
+                  <p
+                    v-if="obj.type === 'file'"
+                    class="text-[10px] text-muted mt-0.5"
+                  >
+                    {{ formatSize(obj.size) }}
+                  </p>
+                </div>
+              </div>
+            </div>
             <div
               v-if="directoryHasMore"
               class="flex justify-center py-2"
@@ -1929,6 +2219,10 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
         </UContextMenu>
       </template>
     </UDashboardPanel>
+    <FileInfoSidebar
+      v-model:open="sidebarOpen"
+      :file="sidebarFile"
+    />
   </UDashboardGroup>
 
   <Teleport to="body">
@@ -2414,11 +2708,26 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
     </template>
 
     <template #body>
+      <div
+        v-if="upload.tasks.length > 0"
+        class="flex items-center gap-1 mb-3"
+      >
+        <UButton
+          v-for="f in (['all', 'active', 'completed', 'failed'] as const)"
+          :key="f"
+          :label="t(`upload.filter.${f}`)"
+          size="xs"
+          :color="upload.taskFilter === f ? 'primary' : 'neutral'"
+          :variant="upload.taskFilter === f ? 'subtle' : 'ghost'"
+          @click="upload.setTaskFilter(f)"
+        />
+      </div>
+
       <UEmpty
         v-if="upload.displayTasks.length === 0"
         icon="i-lucide-upload"
-        :title="t('upload.noTasks')"
-        :description="t('upload.noTasksDesc')"
+        :title="upload.tasks.length > 0 ? t('upload.noFilterMatch') : t('upload.noTasks')"
+        :description="upload.tasks.length > 0 ? '' : t('upload.noTasksDesc')"
         variant="naked"
       />
 
@@ -2587,10 +2896,12 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
 </template>
 
 <style scoped>
+/* Grid item card hover animation */
 .file-grid-item-card {
   transition: transform 120ms ease, box-shadow 160ms ease;
 }
 
+/* Grid TransitionGroup animations */
 .file-grid-enter-active,
 .file-grid-leave-active,
 .file-grid-move {
@@ -2604,14 +2915,31 @@ const uploadChipColor = computed<'warning' | 'success' | 'error'>(() => {
 
 .file-grid-leave-to {
   opacity: 0;
-  transform: scale(0.97) translateY(-4px);
+  transform: scale(0.95);
+}
+
+.file-grid-leave-active {
+  position: absolute;
+}
+
+/* View switch fade animation */
+.view-fade-enter-active,
+.view-fade-leave-active {
+  transition: opacity 150ms ease;
+}
+
+.view-fade-enter-from,
+.view-fade-leave-to {
+  opacity: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .file-grid-item-card,
   .file-grid-enter-active,
   .file-grid-leave-active,
-  .file-grid-move {
+  .file-grid-move,
+  .view-fade-enter-active,
+  .view-fade-leave-active {
     transition: none;
   }
 }
