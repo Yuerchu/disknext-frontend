@@ -16,10 +16,19 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          if (id.includes('monaco-editor/esm/vs/')) return 'vendor-monaco'
           if (id.includes('monaco-editor')) return 'vendor-monaco'
-          if (id.includes('pdfjs-dist') || id.includes('@tato30/vue-pdf')) return 'vendor-pdf'
+          if (id.includes('pdfjs-dist/build')) return 'vendor-pdf-build'
+          if (id.includes('pdfjs-dist/web')) return 'vendor-pdf-web'
+          if (id.includes('@tato30/vue-pdf')) return 'vendor-pdf-vue'
           if (id.includes('plyr')) return 'vendor-plyr'
           if (id.includes('epubjs')) return 'vendor-epub'
+          if (id.includes('three/addons/loaders')) return 'vendor-three-loaders'
+          if (id.includes('three/addons/controls')) return 'vendor-three-controls'
+          if (id.includes('three/examples/jsm')) return 'vendor-three-extras'
+          if (id.includes('three/addons')) return 'vendor-three-addons'
+          if (id.includes('three')) return 'vendor-three-core'
+          if (id.includes('opentype')) return 'vendor-opentype'
         }
       }
     }

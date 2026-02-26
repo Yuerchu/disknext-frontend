@@ -1,28 +1,11 @@
 <script setup lang="ts">
-import Plyr from 'plyr'
-import 'plyr/dist/plyr.css'
+import MediaPlayer from './MediaPlayer.vue'
 
 const props = defineProps<{
   fileUrl: string
   fileName: string
   fileSize: number
 }>()
-
-const audioRef = ref<HTMLAudioElement | null>(null)
-let player: Plyr | null = null
-
-onMounted(() => {
-  if (audioRef.value) {
-    player = new Plyr(audioRef.value, {
-      controls: ['play', 'progress', 'current-time', 'duration', 'mute', 'volume'],
-    })
-  }
-})
-
-onBeforeUnmount(() => {
-  player?.destroy()
-  player = null
-})
 </script>
 
 <template>
@@ -35,9 +18,10 @@ onBeforeUnmount(() => {
       {{ props.fileName }}
     </p>
     <div class="w-full max-w-lg">
-      <audio ref="audioRef">
-        <source :src="props.fileUrl">
-      </audio>
+      <MediaPlayer
+        :file-url="props.fileUrl"
+        kind="audio"
+      />
     </div>
   </div>
 </template>
