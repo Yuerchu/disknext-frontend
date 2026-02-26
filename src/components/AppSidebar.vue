@@ -28,19 +28,23 @@ const items = computed<NavigationMenuItem[][]>(() => [
     },
     {
       label: t('nav.images'),
-      icon: 'i-lucide-image'
+      icon: 'i-lucide-image',
+      to: '/category/image'
     },
     {
       label: t('nav.videos'),
-      icon: 'i-lucide-video'
+      icon: 'i-lucide-video',
+      to: '/category/video'
     },
     {
       label: t('nav.music'),
-      icon: 'i-lucide-music'
+      icon: 'i-lucide-music',
+      to: '/category/audio'
     },
     {
       label: t('nav.documents'),
-      icon: 'i-lucide-file-text'
+      icon: 'i-lucide-file-text',
+      to: '/category/document'
     },
     {
       label: t('nav.sharedWithMe'),

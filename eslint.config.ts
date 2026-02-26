@@ -31,7 +31,8 @@ export default ts.config(
       }
     },
     rules: {
-      'vue/multi-word-component-names': 'off'
+      'vue/multi-word-component-names': 'off',
+      'no-useless-assignment': 'off'
     }
   }
 )

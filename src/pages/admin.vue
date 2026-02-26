@@ -36,7 +36,8 @@ const searchGroups = computed<CommandPaletteGroup<CommandPaletteItem>[]>(() => [
       { label: t('admin.fsSettings'), icon: 'i-lucide-settings', onSelect() { router.push('/admin/fs/settings') } },
       { label: t('admin.fsIcons'), icon: 'i-lucide-image', onSelect() { router.push('/admin/fs/icons') } },
       { label: t('admin.fsViewers'), icon: 'i-lucide-eye', onSelect() { router.push('/admin/fs/viewers') } },
-      { label: t('admin.fsProperties'), icon: 'i-lucide-list', onSelect() { router.push('/admin/fs/properties') } }
+      { label: t('admin.fsProperties'), icon: 'i-lucide-list', onSelect() { router.push('/admin/fs/properties') } },
+      { label: t('admin.fsCategories'), icon: 'i-lucide-tags', onSelect() { router.push('/admin/fs/categories') } }
     ]
   },
   {
@@ -140,7 +141,8 @@ const items = computed<NavigationMenuItem[][]>(() => [
         { label: t('admin.fsSettings'), to: '/admin/fs/settings' },
         { label: t('admin.fsIcons'), to: '/admin/fs/icons' },
         { label: t('admin.fsViewers'), to: '/admin/fs/viewers' },
-        { label: t('admin.fsProperties'), to: '/admin/fs/properties' }
+        { label: t('admin.fsProperties'), to: '/admin/fs/properties' },
+        { label: t('admin.fsCategories'), to: '/admin/fs/categories' }
       ]
     },
     {
