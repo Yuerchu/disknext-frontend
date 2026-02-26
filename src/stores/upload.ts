@@ -32,9 +32,10 @@ export interface UploadTask {
 
 type SpeedMode = 'instant' | 'average'
 type SortOrder = 'newest' | 'oldest'
+export type TaskFilter = 'all' | 'active' | 'completed' | 'failed'
 
 interface UploadSettings {
-  hideCompleted: boolean
+  taskFilter: TaskFilter
   sortOrder: SortOrder
   speedMode: SpeedMode
   maxConcurrent: number
@@ -57,7 +58,7 @@ function loadSettings(): Partial<UploadSettings> {
 
 function saveSettings(state: UploadState) {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify({
-    hideCompleted: state.hideCompleted,
+    taskFilter: state.taskFilter,
     sortOrder: state.sortOrder,
     speedMode: state.speedMode,
     maxConcurrent: state.maxConcurrent,
@@ -84,7 +85,7 @@ export const useUploadStore = defineStore('upload', {
     return {
       tasks: [],
       drawerOpen: false,
-      hideCompleted: saved.hideCompleted ?? false,
+      taskFilter: saved.taskFilter ?? 'all',
       sortOrder: saved.sortOrder ?? 'oldest',
       speedMode: saved.speedMode ?? 'instant',
       maxConcurrent: saved.maxConcurrent ?? 3,
@@ -102,8 +103,16 @@ export const useUploadStore = defineStore('upload', {
     },
     displayTasks(state): UploadTask[] {
       let list = state.tasks
-      if (state.hideCompleted) {
-        list = list.filter(t => t.status === 'uploading' || t.status === 'queued' || t.status === 'failed')
+      switch (state.taskFilter) {
+        case 'active':
+          list = list.filter(t => t.status === 'uploading' || t.status === 'queued')
+          break
+        case 'completed':
+          list = list.filter(t => t.status === 'completed')
+          break
+        case 'failed':
+          list = list.filter(t => t.status === 'failed')
+          break
       }
       if (state.sortOrder === 'newest') {
         return [...list].reverse()
@@ -315,8 +324,8 @@ export const useUploadStore = defineStore('upload', {
       }
     },
 
-    setHideCompleted(val: boolean) {
-      this.hideCompleted = val
+    setTaskFilter(val: TaskFilter) {
+      this.taskFilter = val
       saveSettings(this.$state)
     },
     setSortOrder(val: SortOrder) {
