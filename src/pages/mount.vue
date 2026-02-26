@@ -402,13 +402,64 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
 
                 <div
                   v-else-if="accounts.length === 0"
-                  class="text-center py-12 text-muted"
+                  class="flex items-center justify-center py-16 text-muted"
                 >
-                  <UIcon
-                    name="i-lucide-hard-drive"
-                    class="size-12 mx-auto mb-4 opacity-50"
-                  />
-                  <p>{{ t('mount.empty') }}</p>
+                  <div class="flex flex-col items-center gap-5">
+                    <!-- Mock UI illustration -->
+                    <div
+                      class="relative w-80 rounded-xl bg-elevated/50 overflow-hidden select-none pointer-events-none border border-default"
+                      style="mask-image: linear-gradient(to bottom, black 55%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, black 55%, transparent 100%)"
+                    >
+                      <!-- Mock account row -->
+                      <div class="px-3 pt-3">
+                        <div class="flex items-center gap-2.5 px-2.5 py-2 rounded-md bg-primary/8">
+                          <UIcon
+                            name="i-lucide-user"
+                            class="size-4 opacity-60"
+                          />
+                          <span class="text-xs opacity-60">my-webdav</span>
+                          <span class="text-xs font-mono opacity-40 ml-auto">/</span>
+                        </div>
+                      </div>
+                      <!-- Mock connection info card -->
+                      <div class="mx-3 mt-2 rounded-lg bg-default border border-default p-2.5 space-y-1.5">
+                        <div class="flex items-center gap-1.5 text-xs text-primary font-medium">
+                          <UIcon
+                            name="i-lucide-link"
+                            class="size-3.5"
+                          />
+                          <span>WebDAV</span>
+                        </div>
+                        <div class="text-xs font-mono opacity-40 truncate">
+                          https://example.com/dav/my-webdav
+                        </div>
+                        <div class="flex items-center gap-3 text-xs opacity-40">
+                          <span>{{ t('mount.accountName') }}: my-webdav</span>
+                          <span>{{ t('mount.password') }}: ••••••••</span>
+                        </div>
+                      </div>
+                      <!-- Spacer for fade area -->
+                      <div class="h-10" />
+                    </div>
+
+                    <!-- Text -->
+                    <div class="space-y-1.5 text-center max-w-sm">
+                      <p class="text-base font-semibold text-default">
+                        {{ t('mount.empty') }}
+                      </p>
+                      <p class="text-sm">
+                        {{ t('mount.emptyHint') }}
+                      </p>
+                    </div>
+
+                    <UButton
+                      :label="t('mount.createAccount')"
+                      icon="i-lucide-plus"
+                      color="primary"
+                      variant="soft"
+                      @click="openCreateModal"
+                    />
+                  </div>
                 </div>
 
                 <UTable

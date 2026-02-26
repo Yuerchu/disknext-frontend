@@ -567,19 +567,100 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
             <!-- Empty state -->
             <div
               v-else
-              class="flex items-center justify-center py-24 text-muted"
+              class="flex items-center justify-center py-16 text-muted"
             >
-              <div class="text-center space-y-3">
-                <UIcon
-                  name="i-lucide-check-circle"
-                  class="size-16 mx-auto text-success opacity-70"
-                />
-                <p class="text-lg">
-                  {{ t('trash.empty') }}
-                </p>
-                <p class="text-sm">
-                  {{ t('trash.emptyHint') }}
-                </p>
+              <div class="flex flex-col items-center gap-2">
+                <!-- Animated trash SVG -->
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 240 240"
+                  class="size-40"
+                  role="img"
+                  :aria-label="t('trash.empty')"
+                >
+                  <defs>
+                    <path
+                      id="star"
+                      d="M 0 -12 Q 0 0 12 0 Q 0 0 0 12 Q 0 0 -12 0 Q 0 0 0 -12 Z"
+                    />
+                  </defs>
+                  <!-- Shadow -->
+                  <ellipse
+                    class="trash-shadow"
+                    cx="120"
+                    cy="206"
+                    rx="45"
+                    ry="6"
+                    fill="var(--ui-border)"
+                  />
+                  <!-- Body -->
+                  <path
+                    d="M 75 90 L 86 185 A 12 12 0 0 0 98 196 L 142 196 A 12 12 0 0 0 154 185 L 165 90 Z"
+                    fill="var(--ui-bg)"
+                    stroke="var(--ui-text-muted)"
+                    stroke-width="8"
+                    stroke-linejoin="round"
+                  />
+                  <!-- Stripes -->
+                  <path
+                    d="M 102 110 L 108 175 M 120 110 L 120 175 M 138 110 L 132 175"
+                    fill="none"
+                    stroke="var(--ui-border)"
+                    stroke-width="6"
+                    stroke-linecap="round"
+                  />
+                  <!-- Floating lid -->
+                  <g class="trash-lid">
+                    <path
+                      d="M 100 78 V 64 A 6 6 0 0 1 106 58 H 134 A 6 6 0 0 1 140 64 V 78"
+                      fill="none"
+                      stroke="var(--ui-text-muted)"
+                      stroke-width="8"
+                      stroke-linecap="round"
+                    />
+                    <rect
+                      x="65"
+                      y="78"
+                      width="110"
+                      height="12"
+                      rx="6"
+                      fill="var(--ui-bg)"
+                      stroke="var(--ui-text-muted)"
+                      stroke-width="8"
+                    />
+                  </g>
+                  <!-- Sparkles -->
+                  <g transform="translate(50, 65)">
+                    <use
+                      href="#star"
+                      class="sparkle sparkle-1"
+                      fill="var(--ui-primary)"
+                    />
+                  </g>
+                  <g transform="translate(195, 110) scale(0.7)">
+                    <use
+                      href="#star"
+                      class="sparkle sparkle-2"
+                      fill="var(--ui-text-muted)"
+                    />
+                  </g>
+                  <g transform="translate(170, 170) scale(0.5)">
+                    <use
+                      href="#star"
+                      class="sparkle sparkle-3"
+                      fill="var(--ui-primary)"
+                    />
+                  </g>
+                </svg>
+
+                <div class="space-y-1.5 text-center">
+                  <p class="text-lg font-medium text-default">
+                    {{ t('trash.empty') }}
+                  </p>
+                  <p class="text-sm">
+                    {{ t('trash.emptyHint') }}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -654,3 +735,30 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
     </template>
   </UModal>
 </template>
+
+<style scoped>
+@keyframes floatLid {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-8px) rotate(1.5deg); }
+}
+@keyframes shadowPulse {
+  0%, 100% { transform: scaleX(1); opacity: 1; }
+  50% { transform: scaleX(0.9); opacity: 0.6; }
+}
+@keyframes twinkle {
+  0%, 100% { transform: scale(0.6); opacity: 0.2; }
+  50% { transform: scale(1.1); opacity: 1; }
+}
+.trash-lid {
+  animation: floatLid 4s ease-in-out infinite;
+  transform-origin: 120px 70px;
+}
+.trash-shadow {
+  animation: shadowPulse 4s ease-in-out infinite;
+  transform-origin: 120px 206px;
+}
+.sparkle { transform-origin: 0 0; }
+.sparkle-1 { animation: twinkle 3s ease-in-out infinite; }
+.sparkle-2 { animation: twinkle 4s ease-in-out infinite 1.5s; }
+.sparkle-3 { animation: twinkle 3.5s ease-in-out infinite 0.7s; }
+</style>

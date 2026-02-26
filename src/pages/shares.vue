@@ -373,26 +373,91 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
 
           <div
             v-else-if="shares.length === 0"
-            class="text-center py-12 text-muted space-y-3"
+            class="flex items-center justify-center py-20 text-muted"
           >
-            <UIcon
-              name="i-lucide-share-2"
-              class="size-16 mx-auto opacity-50"
-            />
-            <p class="text-lg">
-              {{ t('myShares.empty') }}
-            </p>
-            <p class="text-sm">
-              {{ t('myShares.emptyHint') }}
-            </p>
-            <UButton
-              :label="t('myShares.goToFiles')"
-              icon="i-lucide-folder"
-              color="primary"
-              variant="soft"
-              size="sm"
-              to="/home"
-            />
+            <div class="flex flex-col items-center gap-5">
+              <!-- Mock UI illustration -->
+              <div
+                class="relative w-80 rounded-xl bg-elevated/50 overflow-hidden select-none pointer-events-none border border-default"
+                style="mask-image: linear-gradient(to bottom, black 55%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, black 55%, transparent 100%)"
+              >
+                <!-- Mock file rows -->
+                <div class="px-3 pt-3 space-y-0.5">
+                  <div class="flex items-center gap-2.5 px-2.5 py-2 rounded-md opacity-30">
+                    <UIcon
+                      name="i-lucide-file-text"
+                      class="size-4"
+                    />
+                    <span class="text-xs">report.pdf</span>
+                  </div>
+                  <div class="flex items-center gap-2.5 px-2.5 py-2 rounded-md bg-primary/8">
+                    <UIcon
+                      name="i-lucide-image"
+                      class="size-4 opacity-60"
+                    />
+                    <span class="text-xs opacity-60">photo.jpg</span>
+                  </div>
+                  <div class="flex items-center gap-2.5 px-2.5 py-2 rounded-md opacity-30">
+                    <UIcon
+                      name="i-lucide-folder"
+                      class="size-4"
+                    />
+                    <span class="text-xs">documents</span>
+                  </div>
+                </div>
+                <!-- Mock context menu -->
+                <div class="absolute right-6 top-6 w-40 rounded-lg bg-default shadow-lg border border-default p-1 space-y-0.5">
+                  <div class="flex items-center gap-2 px-2.5 py-1.5 rounded text-xs opacity-40">
+                    <UIcon
+                      name="i-lucide-download"
+                      class="size-3.5"
+                    />
+                    <span>{{ t('common.download') }}</span>
+                  </div>
+                  <div class="flex items-center gap-2 px-2.5 py-1.5 rounded bg-primary/15 text-primary text-xs font-medium">
+                    <UIcon
+                      name="i-lucide-share-2"
+                      class="size-3.5"
+                    />
+                    <span>{{ t('common.share') }}</span>
+                  </div>
+                  <div class="flex items-center gap-2 px-2.5 py-1.5 rounded text-xs opacity-40">
+                    <UIcon
+                      name="i-lucide-pencil"
+                      class="size-3.5"
+                    />
+                    <span>{{ t('common.rename') }}</span>
+                  </div>
+                  <div class="flex items-center gap-2 px-2.5 py-1.5 rounded text-xs opacity-40">
+                    <UIcon
+                      name="i-lucide-trash-2"
+                      class="size-3.5"
+                    />
+                    <span>{{ t('common.delete') }}</span>
+                  </div>
+                </div>
+                <!-- Spacer for fade area -->
+                <div class="h-14" />
+              </div>
+
+              <!-- Text -->
+              <div class="space-y-1.5 text-center max-w-sm">
+                <p class="text-base font-semibold text-default">
+                  {{ t('myShares.empty') }}
+                </p>
+                <p class="text-sm">
+                  {{ t('myShares.emptyHint') }}
+                </p>
+              </div>
+
+              <UButton
+                :label="t('myShares.goToFiles')"
+                icon="i-lucide-folder"
+                color="primary"
+                variant="soft"
+                to="/home"
+              />
+            </div>
           </div>
 
           <template v-else>

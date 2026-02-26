@@ -333,6 +333,16 @@ const categoryIcon = computed(() => {
   return icons[category.value] || 'i-lucide-file'
 })
 
+const mockFile = computed(() => {
+  const files: Record<string, { name: string; icon: string }> = {
+    image: { name: 'vacation.jpg', icon: 'i-lucide-image' },
+    video: { name: 'recording.mp4', icon: 'i-lucide-video' },
+    audio: { name: 'podcast.mp3', icon: 'i-lucide-music' },
+    document: { name: 'report.pdf', icon: 'i-lucide-file-text' },
+  }
+  return files[category.value] || files.document
+})
+
 // Watch for category changes
 watch(category, () => {
   currentPage.value = 1
@@ -520,17 +530,74 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => {
               v-else
               class="flex items-center justify-center py-24 text-muted"
             >
-              <div class="text-center space-y-2">
-                <UIcon
-                  :name="categoryIcon"
-                  class="size-16 mx-auto opacity-50"
+              <div class="flex flex-col items-center gap-5">
+                <!-- Mock UI illustration -->
+                <div
+                  class="relative w-80 rounded-xl bg-elevated/50 overflow-hidden select-none pointer-events-none border border-default"
+                  style="mask-image: linear-gradient(to bottom, black 55%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, black 55%, transparent 100%)"
+                >
+                  <!-- Mock file rows -->
+                  <div class="px-3 pt-3 space-y-0.5">
+                    <div class="flex items-center gap-2.5 px-2.5 py-2 rounded-md opacity-30">
+                      <UIcon
+                        name="i-lucide-folder"
+                        class="size-4"
+                      />
+                      <span class="text-xs">documents</span>
+                    </div>
+                    <div class="flex items-center gap-2.5 px-2.5 py-2 rounded-md bg-primary/8">
+                      <UIcon
+                        :name="mockFile.icon"
+                        class="size-4 opacity-60"
+                      />
+                      <span class="text-xs opacity-60">{{ mockFile.name }}</span>
+                    </div>
+                    <div class="flex items-center gap-2.5 px-2.5 py-2 rounded-md opacity-30">
+                      <UIcon
+                        name="i-lucide-file"
+                        class="size-4"
+                      />
+                      <span class="text-xs">readme.txt</span>
+                    </div>
+                  </div>
+                  <!-- Mock auto-classify notification -->
+                  <div class="absolute right-4 top-4 w-44 rounded-lg bg-default shadow-lg border border-default p-2.5 space-y-1">
+                    <div class="flex items-center gap-1.5 text-xs font-medium opacity-70">
+                      <UIcon
+                        name="i-lucide-check-circle"
+                        class="size-3.5 text-success"
+                      />
+                      <span>{{ t('category.autoClassified') }}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 text-xs opacity-40">
+                      <UIcon
+                        :name="categoryIcon"
+                        class="size-3"
+                      />
+                      <span>{{ mockFile.name }} → {{ categoryLabel }}</span>
+                    </div>
+                  </div>
+                  <!-- Spacer for fade area -->
+                  <div class="h-14" />
+                </div>
+
+                <!-- Text -->
+                <div class="space-y-1.5 text-center max-w-sm">
+                  <p class="text-base font-semibold text-default">
+                    {{ t('category.empty', { category: categoryLabel }) }}
+                  </p>
+                  <p class="text-sm">
+                    {{ t('category.emptyHint', { category: categoryLabel }) }}
+                  </p>
+                </div>
+
+                <UButton
+                  :label="t('category.goToFiles')"
+                  icon="i-lucide-folder"
+                  color="primary"
+                  variant="soft"
+                  to="/home"
                 />
-                <p class="text-lg">
-                  {{ t('category.empty', { category: categoryLabel }) }}
-                </p>
-                <p class="text-sm">
-                  {{ t('category.emptyHint', { category: categoryLabel }) }}
-                </p>
               </div>
             </div>
 

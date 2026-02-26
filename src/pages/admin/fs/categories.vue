@@ -17,12 +17,13 @@ const toast = useToast()
 
 const loading = ref(true)
 const saving = ref(false)
+const emptyItems: string[] = []
 
-const form = ref({
-  image: '',
-  video: '',
-  audio: '',
-  document: '',
+const form = ref<Record<string, string[]>>({
+  image: [],
+  video: [],
+  audio: [],
+  document: [],
 })
 
 const original = ref<Record<string, string>>({})
@@ -34,17 +35,32 @@ const settingTypeMap: Record<string, string> = {
   document: 'file_category',
 }
 
+function csvToTags(csv: string): string[] {
+  return csv.split(',').map(s => s.trim()).filter(Boolean)
+}
+
+function tagsToCsv(tags: string[]): string {
+  return tags.join(',')
+}
+
+function onCreateTag(category: string, item: string) {
+  const normalized = item.trim().toLowerCase().replace(/^\./, '')
+  if (!normalized) return
+  if (!form.value[category].includes(normalized)) {
+    form.value[category].push(normalized)
+  }
+}
+
 async function fetchSettings() {
   loading.value = true
   try {
     const { data } = await api.get<{ settings: Setting[]; total: number }>('/api/v1/admin/settings', {
       params: { type: 'file_category' },
     })
-    const formVal = form.value as Record<string, string>
     const orig: Record<string, string> = {}
     for (const s of data.settings) {
-      if (s.name in formVal) {
-        formVal[s.name] = s.value
+      if (s.name in form.value) {
+        form.value[s.name] = csvToTags(s.value)
         orig[s.name] = s.value
       }
     }
@@ -64,8 +80,8 @@ async function fetchSettings() {
 
 async function saveSettings() {
   const changes: Setting[] = []
-  const formVal = form.value as Record<string, string>
-  for (const [name, value] of Object.entries(formVal)) {
+  for (const [name, tags] of Object.entries(form.value)) {
+    const value = tagsToCsv(tags)
     if (value !== (original.value[name] ?? '')) {
       changes.push({ type: settingTypeMap[name], name, value })
     }
@@ -125,31 +141,47 @@ onMounted(() => fetchSettings())
         <UCard>
           <div class="space-y-4">
             <UFormField :label="t('adminFileCategory.imageExtensions')">
-              <UTextarea
+              <UInputMenu
                 v-model="form.image"
-                :rows="3"
+                multiple
+                create-item="always"
+                :items="emptyItems"
+                :placeholder="t('adminFileCategory.tagPlaceholder')"
                 class="w-full"
+                @create="(item: string) => onCreateTag('image', item)"
               />
             </UFormField>
             <UFormField :label="t('adminFileCategory.videoExtensions')">
-              <UTextarea
+              <UInputMenu
                 v-model="form.video"
-                :rows="3"
+                multiple
+                create-item="always"
+                :items="emptyItems"
+                :placeholder="t('adminFileCategory.tagPlaceholder')"
                 class="w-full"
+                @create="(item: string) => onCreateTag('video', item)"
               />
             </UFormField>
             <UFormField :label="t('adminFileCategory.audioExtensions')">
-              <UTextarea
+              <UInputMenu
                 v-model="form.audio"
-                :rows="3"
+                multiple
+                create-item="always"
+                :items="emptyItems"
+                :placeholder="t('adminFileCategory.tagPlaceholder')"
                 class="w-full"
+                @create="(item: string) => onCreateTag('audio', item)"
               />
             </UFormField>
             <UFormField :label="t('adminFileCategory.documentExtensions')">
-              <UTextarea
+              <UInputMenu
                 v-model="form.document"
-                :rows="3"
+                multiple
+                create-item="always"
+                :items="emptyItems"
+                :placeholder="t('adminFileCategory.tagPlaceholder')"
                 class="w-full"
+                @create="(item: string) => onCreateTag('document', item)"
               />
             </UFormField>
           </div>
