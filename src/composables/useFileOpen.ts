@@ -26,6 +26,10 @@ export interface ViewerState {
   loading: boolean
   /** Error message if content fetch failed */
   error: string | null
+  /** Sibling files of the same viewer type in the same directory */
+  siblingFiles: FileBasicInfo[]
+  /** Current file index within siblingFiles */
+  currentIndex: number
 }
 
 /** Minimal file info needed to open a file */
@@ -45,6 +49,9 @@ export const APP_KEY_COMPONENT: Record<string, string> = {
   image_viewer: 'ImageViewer',
   video_player: 'VideoPlayer',
   audio_player: 'AudioPlayer',
+  epub_reader: 'EpubViewer',
+  model_viewer: 'ModelViewer',
+  font_viewer: 'FontViewer',
 }
 
 /** app_keys that need text content instead of a URL */
@@ -60,6 +67,9 @@ const ICON_MAP: Record<string, string> = {
   'audio': 'i-lucide-music',
   'file-word': 'i-lucide-file-text',
   'file-text': 'i-lucide-file-text',
+  'book-open': 'i-lucide-book-open',
+  'cube': 'i-lucide-box',
+  'type': 'i-lucide-type',
 }
 
 /** Resolve backend icon string to a Lucide icon class */
@@ -176,6 +186,7 @@ const chooserFile = ref<FileBasicInfo | null>(null)
 const chooserViewers = ref<FileAppSummary[]>([])
 let launchSeq = 0
 let closeTimer: ReturnType<typeof setTimeout> | null = null
+let pendingSiblings: FileBasicInfo[] | null = null
 
 export function useFileOpen() {
   const toast = useToast()
@@ -199,7 +210,8 @@ export function useFileOpen() {
   // ── Core methods ──
 
   /** Called when user clicks / double-clicks a file */
-  async function openFile(file: FileBasicInfo) {
+  async function openFile(file: FileBasicInfo, siblings?: FileBasicInfo[]) {
+    pendingSiblings = siblings ?? null
     const ext = getFileExtension(file.name)
     if (!ext) return
 
@@ -289,6 +301,18 @@ export function useFileOpen() {
       closeTimer = null
     }
 
+    // Build sibling list — only keep files (siblings are already pre-filtered by caller)
+    let siblingFiles: FileBasicInfo[] = []
+    let currentIndex = -1
+    if (pendingSiblings) {
+      siblingFiles = pendingSiblings
+      currentIndex = siblingFiles.findIndex(s => s.id === file.id)
+      if (currentIndex < 0) {
+        siblingFiles = []
+        currentIndex = -1
+      }
+    }
+
     viewerState.value = {
       fileId: file.id,
       fileName: file.name,
@@ -302,6 +326,8 @@ export function useFileOpen() {
       originalContent: null,
       loading: true,
       error: null,
+      siblingFiles,
+      currentIndex,
     }
     viewerOpen.value = true
 
@@ -417,6 +443,28 @@ export function useFileOpen() {
   // i18n — auto-imported by @nuxt/ui vite plugin
   const { t } = useI18n()
 
+  /** Navigate to previous/next sibling file */
+  async function navigateFile(delta: number) {
+    const state = viewerState.value
+    if (!state || state.siblingFiles.length === 0 || state.currentIndex < 0) return
+    const nextIndex = state.currentIndex + delta
+    if (nextIndex < 0 || nextIndex >= state.siblingFiles.length) return
+    const nextFile = state.siblingFiles[nextIndex]
+    // Preserve the siblings list for the next launch
+    pendingSiblings = state.siblingFiles as unknown as FileBasicInfo[]
+    await launchViewer(nextFile, state.viewer)
+  }
+
+  const hasPrevFile = computed(() => {
+    const state = viewerState.value
+    return !!state && state.currentIndex > 0
+  })
+
+  const hasNextFile = computed(() => {
+    const state = viewerState.value
+    return !!state && state.currentIndex >= 0 && state.currentIndex < state.siblingFiles.length - 1
+  })
+
   return {
     viewerOpen: readonly(viewerOpen),
     viewerState: readonly(viewerState),
@@ -430,5 +478,8 @@ export function useFileOpen() {
     downloadFile,
     closeViewer,
     saveTextContent,
+    navigateFile,
+    hasPrevFile,
+    hasNextFile,
   }
 }

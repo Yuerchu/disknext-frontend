@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import { useSwipeGesture } from '../../composables/useSwipeGesture'
 
 const props = defineProps<{
   fileUrl: string
   fileName: string
   fileSize: number
+}>()
+
+const emit = defineEmits<{
+  navigate: [delta: number]
 }>()
 
 const { t } = useI18n()
@@ -18,6 +23,15 @@ const dragStart = ref({ x: 0, y: 0 })
 
 const containerRef = ref<HTMLElement | null>(null)
 const imgRef = ref<HTMLImageElement | null>(null)
+
+// Swipe gesture for file navigation (only when not zoomed)
+const swipeDisabled = computed(() => scale.value > 1)
+useSwipeGesture(containerRef, {
+  threshold: 50,
+  disabled: swipeDisabled,
+  onSwipeLeft: () => emit('navigate', 1),
+  onSwipeRight: () => emit('navigate', -1),
+})
 
 const transform = computed(() =>
   `translate(${translateX.value}px, ${translateY.value}px) scale(${scale.value}) rotate(${rotation.value}deg)`
@@ -66,6 +80,7 @@ function onWheel(e: WheelEvent) {
 }
 
 function onPointerDown(e: PointerEvent) {
+  if (scale.value <= 1) return
   dragging.value = true
   dragStart.value = { x: e.clientX - translateX.value, y: e.clientY - translateY.value }
   ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
