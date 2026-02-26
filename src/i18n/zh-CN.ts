@@ -38,6 +38,7 @@ export default {
     emptyFolder: '文件夹为空',
     dropToUpload: '拖放文件到此处上传',
     releaseToUpload: '释放以上传文件',
+    loadMore: '加载更多',
     viewList: '列表',
     viewGrid: '网格',
     dragDrop: {
@@ -949,6 +950,7 @@ export default {
     duplicateFailed: '创建副本失败',
     createFolderFailed: '创建文件夹失败',
     loading: '加载中...',
+    loadMore: '加载更多',
   },
   theme: {
     title: '主题',
@@ -1128,6 +1130,10 @@ export default {
     rotateRight: '顺时针旋转',
     resetView: '重置视图',
     fitToWindow: '适应窗口',
+    prevFile: '上一个文件',
+    nextFile: '下一个文件',
+    fileIndex: '{current} / {total}',
+    goToPage: '跳转到页',
     editor: {
       saving: '保存中...',
       saved: '已保存',
@@ -1138,6 +1144,25 @@ export default {
       unsavedChanges: '有未保存的更改，确定关闭吗？',
       unsavedTitle: '未保存的更改',
       discard: '放弃',
+    },
+    epub: {
+      toc: '目录',
+      loadError: '无法加载 EPUB 文件',
+    },
+    model: {
+      wireframe: '线框模式',
+      resetCamera: '重置相机',
+      loadError: '无法加载 3D 模型',
+    },
+    font: {
+      family: '字体族',
+      subfamily: '子族',
+      designer: '设计师',
+      version: '版本',
+      glyphs: '字形数',
+      unitsPerEm: '字形单位',
+      loadError: '无法加载字体文件',
+      inputPlaceholder: '输入预览文本...',
     },
   },
 }

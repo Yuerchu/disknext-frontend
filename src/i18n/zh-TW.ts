@@ -38,6 +38,7 @@ export default {
     emptyFolder: '資料夾為空',
     dropToUpload: '拖放檔案到此處上傳',
     releaseToUpload: '釋放以上傳檔案',
+    loadMore: '載入更多',
     viewList: '列表',
     viewGrid: '網格',
     dragDrop: {
@@ -949,6 +950,7 @@ export default {
     duplicateFailed: '建立副本失敗',
     createFolderFailed: '建立資料夾失敗',
     loading: '載入中...',
+    loadMore: '載入更多',
   },
   theme: {
     title: '主題',
@@ -1128,6 +1130,10 @@ export default {
     rotateRight: '順時針旋轉',
     resetView: '重置檢視',
     fitToWindow: '適應視窗',
+    prevFile: '上一個檔案',
+    nextFile: '下一個檔案',
+    fileIndex: '{current} / {total}',
+    goToPage: '跳轉到頁',
     editor: {
       saving: '儲存中...',
       saved: '已儲存',
@@ -1138,6 +1144,25 @@ export default {
       unsavedChanges: '有未儲存的變更，確定關閉嗎？',
       unsavedTitle: '未儲存的變更',
       discard: '捨棄',
+    },
+    epub: {
+      toc: '目錄',
+      loadError: '無法載入 EPUB 檔案',
+    },
+    model: {
+      wireframe: '線框模式',
+      resetCamera: '重置相機',
+      loadError: '無法載入 3D 模型',
+    },
+    font: {
+      family: '字型族',
+      subfamily: '子族',
+      designer: '設計師',
+      version: '版本',
+      glyphs: '字形數',
+      unitsPerEm: '字形單位',
+      loadError: '無法載入字型檔案',
+      inputPlaceholder: '輸入預覽文字...',
     },
   },
 }
