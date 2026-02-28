@@ -99,6 +99,7 @@ watch(pageList, () => {
 
 onBeforeUnmount(() => {
   observer?.disconnect()
+  pageRefs.clear()
 })
 </script>
 

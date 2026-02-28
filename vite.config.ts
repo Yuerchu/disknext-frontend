@@ -2,15 +2,30 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import ui from '@nuxt/ui/vite'
 
+const backend = "http://127.0.0.1:8000";
+
 // https://vitejs.dev/config/
 export default defineConfig({
   server: {
+    host: "0.0.0.0",
     proxy: {
-      '/api': 'http://127.0.0.1:8000',
-      '/dav': 'http://127.0.0.1:8000',
-      '/emby': 'http://127.0.0.1:8000',
-      '/subsonic': 'http://127.0.0.1:8000'
+      '/api': { target: backend },
+      '/dav': { target: backend },
+      '/emby': { target: backend },
+      '/subsonic': { target: backend },
     }
+  },
+  resolve: {
+    alias: [
+      // Redirect the bare 'monaco-editor' package import to the minimal editor.api entry point.
+      // This prevents editor.main.js from loading all ~80 basic-language tokenisers by default.
+      // Sub-path imports such as 'monaco-editor/esm/...' are intentionally NOT affected.
+      // The full package types are still used by TypeScript for correct type inference.
+      {
+        find: /^monaco-editor$/,
+        replacement: 'monaco-editor/esm/vs/editor/editor.api',
+      },
+    ],
   },
   build: {
     rollupOptions: {
