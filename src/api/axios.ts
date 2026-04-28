@@ -52,6 +52,8 @@ http.interceptors.response.use(undefined, async (error) => {
     }
 
     config._retried = true;
+    // 用刷新后的新 token 替换旧 token
+    config.headers.Authorization = `Bearer ${useAuthStore.getState().accessToken}`;
     return http.request(config);
   }
 

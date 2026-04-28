@@ -13,7 +13,7 @@ import type { FileActions } from "./file-context-menu";
 import type { EntryResponse } from "@/api";
 import { cn } from "@/lib/utils";
 import {
-  FolderOpen, Download, Pencil, Trash2, FolderPlus, FilePlus, RefreshCw,
+  FolderOpen, Download, Pencil, Share2, Trash2, FolderPlus, FilePlus, RefreshCw,
 } from "lucide-react";
 
 function formatBytes(bytes: number): string {
@@ -126,6 +126,9 @@ export function FileListView({ items, selectedIds, onSelect, onSelectAll, onNavi
                 <ContextMenuItem onClick={() => actions.onNavigate(contextEntry)}>
                   <FolderOpen className="mr-2 size-4" />{t("contextMenu.open")}
                 </ContextMenuItem>
+                <ContextMenuItem onClick={() => actions.onShare(contextEntry)}>
+                  <Share2 className="mr-2 size-4" />{t("contextMenu.share")}
+                </ContextMenuItem>
                 <ContextMenuSeparator />
                 <ContextMenuItem onClick={() => actions.onRename(contextEntry)}>
                   <Pencil className="mr-2 size-4" />{t("common.rename")}
@@ -139,6 +142,9 @@ export function FileListView({ items, selectedIds, onSelect, onSelectAll, onNavi
               <>
                 <ContextMenuItem onClick={() => actions.onDownload(contextEntry)}>
                   <Download className="mr-2 size-4" />{t("common.download")}
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => actions.onShare(contextEntry)}>
+                  <Share2 className="mr-2 size-4" />{t("contextMenu.share")}
                 </ContextMenuItem>
                 <ContextMenuSeparator />
                 <ContextMenuItem onClick={() => actions.onRename(contextEntry)}>

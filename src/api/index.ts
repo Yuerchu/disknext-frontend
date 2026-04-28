@@ -9,6 +9,7 @@ import type {
   DirectoryResponse, DirectoryCreateRequest, CreateFileRequest,
   EntryUpdateRequest, EntryDeleteRequest,
   CreateUploadSessionRequest, UploadSessionResponse, UploadChunkResponse,
+  ShareListResponse, ShareListParams, ShareCreateRequest, ShareCreateResponse,
 } from "./types";
 
 // 重导出
@@ -125,4 +126,17 @@ export const file = {
       formData,
     ).then((r) => r.data);
   },
+};
+
+// --- 分享 ---
+
+export const share = {
+  list: (params?: ShareListParams) =>
+    http.get<ShareListResponse>("/api/v1/share/", { params }).then((r) => r.data),
+
+  create: (req: ShareCreateRequest) =>
+    http.post<ShareCreateResponse>("/api/v1/share/", req).then((r) => r.data),
+
+  delete: (id: string) =>
+    http.delete<void>(`/api/v1/share/${id}`),
 };

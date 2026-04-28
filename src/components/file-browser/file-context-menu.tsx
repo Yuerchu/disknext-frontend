@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import {
-  FolderOpen, Download, Pencil,
+  FolderOpen, Download, Pencil, Share2,
   Trash2, FolderPlus, FilePlus, RefreshCw,
 } from "lucide-react";
 import {
@@ -23,6 +23,7 @@ export interface FileActions {
   onRename: (entry: EntryResponse) => void;
   onDelete: (entries: EntryResponse[]) => void;
   onDownload: (entry: EntryResponse) => void;
+  onShare: (entry: EntryResponse) => void;
 }
 
 interface FileContextMenuProps {
@@ -64,6 +65,10 @@ export function FileContextMenu({ children, target, actions, selectedEntries, cl
               <FolderOpen className="mr-2 size-4" />
               {t("contextMenu.open")}
             </ContextMenuItem>
+            <ContextMenuItem onClick={() => actions.onShare(target.entry)}>
+              <Share2 className="mr-2 size-4" />
+              {t("contextMenu.share")}
+            </ContextMenuItem>
             <ContextMenuSeparator />
             <ContextMenuItem onClick={() => actions.onRename(target.entry)}>
               <Pencil className="mr-2 size-4" />
@@ -82,6 +87,10 @@ export function FileContextMenu({ children, target, actions, selectedEntries, cl
             <ContextMenuItem onClick={() => actions.onDownload(target.entry)}>
               <Download className="mr-2 size-4" />
               {t("common.download")}
+            </ContextMenuItem>
+            <ContextMenuItem onClick={() => actions.onShare(target.entry)}>
+              <Share2 className="mr-2 size-4" />
+              {t("contextMenu.share")}
             </ContextMenuItem>
             <ContextMenuSeparator />
             <ContextMenuItem onClick={() => actions.onRename(target.entry)}>

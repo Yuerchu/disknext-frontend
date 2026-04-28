@@ -8,6 +8,7 @@ import { FileGalleryView } from "./file-gallery-view";
 import { FileEmptyState } from "./file-empty-state";
 import { FileContextMenu, type FileActions } from "./file-context-menu";
 import { CreateFolderDialog, CreateFileDialog, RenameDialog, DeleteDialog } from "./file-dialogs";
+import { CreateShareDialog } from "@/components/share/create-share-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { file, resolveErrorMessage } from "@/api";
 import type { DirectoryResponse, EntryResponse } from "@/api";
@@ -33,6 +34,7 @@ export function FileBrowser({ directory, viewMode, showThumb, loading, path, onR
   const [createFileOpen, setCreateFileOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<EntryResponse | null>(null);
   const [deleteTargets, setDeleteTargets] = useState<EntryResponse[]>([]);
+  const [shareTarget, setShareTarget] = useState<EntryResponse | null>(null);
 
   const sortedItems = useMemo(() => {
     if (!directory) return [];
@@ -172,6 +174,7 @@ export function FileBrowser({ directory, viewMode, showThumb, loading, path, onR
     onRename: (entry) => setRenameTarget(entry),
     onDelete: (entries) => setDeleteTargets(entries),
     onDownload: handleDownload,
+    onShare: (entry) => setShareTarget(entry),
   }), [onRefresh, handleNavigate, handleDownload]);
 
   // View props
@@ -274,6 +277,14 @@ export function FileBrowser({ directory, viewMode, showThumb, loading, path, onR
           ids={deleteTargets.map((e) => e.id)}
           names={deleteTargets.map((e) => e.name)}
           onSuccess={handleDialogSuccess}
+        />
+      )}
+      {shareTarget && (
+        <CreateShareDialog
+          open={!!shareTarget}
+          onOpenChange={(open) => { if (!open) setShareTarget(null); }}
+          fileId={shareTarget.id}
+          fileName={shareTarget.name}
         />
       )}
     </div>

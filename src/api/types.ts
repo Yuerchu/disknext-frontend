@@ -186,3 +186,44 @@ export interface UploadChunkResponse {
 export interface MagicLinkRequest {
   email: string;
 }
+
+export interface ShareResponse {
+  id: string;
+  code: string;
+  views: number;
+  downloads: number;
+  remain_downloads: number | null;
+  expires: string | null;
+  preview_enabled: boolean;
+  score: number;
+  has_password: boolean;
+  created_at: string;
+  file_id: string;
+  is_expired: boolean;
+}
+
+export interface ShareListResponse {
+  count: number;
+  items: ShareResponse[];
+}
+
+export interface ShareCreateRequest {
+  file_id: string;
+  password?: string | null;
+  expires?: string | null;
+  remain_downloads?: number | null;
+  preview_enabled?: boolean;
+  score?: number;
+}
+
+export interface ShareCreateResponse extends ResponseBase {
+  share_id: string;
+}
+
+export interface ShareListParams {
+  expired?: boolean | null;
+  offset?: number;
+  limit?: number;
+  desc?: boolean;
+  order?: "created_at" | "updated_at";
+}
