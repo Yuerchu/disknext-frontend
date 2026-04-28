@@ -1,8 +1,9 @@
+import type { LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation } from "react-router";
 import {
   FolderOpen, Image, Video, Music, FileText, Share2, Trash2,
-  HardDrive, Shield, Settings, Upload,
+  HardDrive, Shield, Settings, Upload, Download, Globe,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup,
@@ -12,6 +13,15 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { NavUser } from "./nav-user";
 import { useUserStore } from "@/stores/user";
+import { useAbility } from "@/lib/ability-context";
+
+interface NavItem {
+  path: string;
+  icon: LucideIcon;
+  label: string;
+  /** 需要的 scope resource（检查 read 权限），不填则始终显示 */
+  scope?: string;
+}
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -27,25 +37,30 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
   const location = useLocation();
   const storage = useUserStore((s) => s.storage);
   const isAdmin = useUserStore((s) => s.isAdmin);
+  const ability = useAbility();
 
-  const navItems = [
-    { path: "/home", icon: FolderOpen, label: t("nav.myFiles") },
-    { path: "/category/image", icon: Image, label: t("nav.images") },
-    { path: "/category/video", icon: Video, label: t("nav.videos") },
-    { path: "/category/audio", icon: Music, label: t("nav.music") },
-    { path: "/category/document", icon: FileText, label: t("nav.documents") },
+  const navItems: NavItem[] = [
+    { path: "/home", icon: FolderOpen, label: t("nav.myFiles"), scope: "files" },
+    { path: "/category/image", icon: Image, label: t("nav.images"), scope: "files" },
+    { path: "/category/video", icon: Video, label: t("nav.videos"), scope: "files" },
+    { path: "/category/audio", icon: Music, label: t("nav.music"), scope: "files" },
+    { path: "/category/document", icon: FileText, label: t("nav.documents"), scope: "files" },
   ];
 
-  const otherItems = [
-    { path: "/shares", icon: Share2, label: t("nav.shares") },
-    { path: "/trash", icon: Trash2, label: t("nav.trash") },
-    { path: "/mount", icon: HardDrive, label: t("nav.mount") },
+  const otherItems: NavItem[] = [
+    { path: "/shares", icon: Share2, label: t("nav.shares"), scope: "shares" },
+    { path: "/trash", icon: Trash2, label: t("nav.trash"), scope: "files" },
+    { path: "/mount", icon: HardDrive, label: t("nav.mount"), scope: "webdav" },
+    { path: "/aria2", icon: Download, label: t("nav.aria2"), scope: "aria2" },
   ];
 
-  const secondaryItems = [
+  const secondaryItems: NavItem[] = [
     { path: "/settings", icon: Settings, label: t("nav.settings") },
     ...(isAdmin ? [{ path: "/admin", icon: Shield, label: t("nav.admin") }] : []),
   ];
+
+  const filterByScope = (items: NavItem[]) =>
+    items.filter((item) => !item.scope || ability.can("read", item.scope));
 
   const usedPercent = storage ? (storage.used / storage.total) * 100 : 0;
 
@@ -60,7 +75,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
               className="data-[slot=sidebar-menu-button]:p-1.5!"
             >
               <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <HardDrive className="size-4" />
+                <Globe className="size-4" />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">DiskNext</span>
@@ -74,22 +89,23 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
 
       <SidebarContent>
-        {/* Upload button + main nav */}
         <SidebarGroup>
           <SidebarGroupContent className="flex flex-col gap-2">
+            {ability.can("create", "files") && (
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    tooltip={t("common.upload")}
+                    className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
+                  >
+                    <Upload />
+                    <span>{t("common.upload")}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            )}
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  tooltip={t("common.upload")}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
-                >
-                  <Upload />
-                  <span>{t("common.upload")}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-            <SidebarMenu>
-              {navItems.map((item) => (
+              {filterByScope(navItems).map((item) => (
                 <SidebarMenuItem key={item.path}>
                   <SidebarMenuButton
                     isActive={location.pathname.startsWith(item.path)}
@@ -105,28 +121,28 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Other nav */}
-        <SidebarGroup>
-          <SidebarGroupLabel>{t("common.more")}</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {otherItems.map((item) => (
-                <SidebarMenuItem key={item.path}>
-                  <SidebarMenuButton
-                    isActive={location.pathname === item.path}
-                    onClick={() => navigate(item.path)}
-                    tooltip={item.label}
-                  >
-                    <item.icon />
-                    <span>{item.label}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {filterByScope(otherItems).length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>{t("common.more")}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {filterByScope(otherItems).map((item) => (
+                  <SidebarMenuItem key={item.path}>
+                    <SidebarMenuButton
+                      isActive={location.pathname === item.path}
+                      onClick={() => navigate(item.path)}
+                      tooltip={item.label}
+                    >
+                      <item.icon />
+                      <span>{item.label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
-        {/* Secondary nav (settings, admin) at bottom */}
         <SidebarGroup className="mt-auto">
           <SidebarGroupContent>
             <SidebarMenu>

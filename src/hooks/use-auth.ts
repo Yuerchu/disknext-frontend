@@ -5,7 +5,7 @@ import { useUserStore } from "@/stores/user";
 
 export function useRequireAuth() {
   const navigate = useNavigate();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+  const accessToken = useAuthStore((s) => s.accessToken);
   const ensureAuthenticated = useAuthStore((s) => s.ensureAuthenticated);
   const [checked, setChecked] = useState(false);
 
@@ -14,33 +14,31 @@ export function useRequireAuth() {
       if (!ok) navigate("/session", { replace: true });
       else setChecked(true);
     });
-  }, [ensureAuthenticated, navigate, isAuthenticated]);
+  }, [ensureAuthenticated, navigate, accessToken]);
 
   return checked;
 }
 
 export function useRequireGuest() {
   const navigate = useNavigate();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+  const accessToken = useAuthStore((s) => s.accessToken);
 
   useEffect(() => {
-    if (isAuthenticated) navigate("/home", { replace: true });
-  }, [isAuthenticated, navigate]);
+    if (accessToken) navigate("/home", { replace: true });
+  }, [accessToken, navigate]);
 
-  return !isAuthenticated;
+  return !accessToken;
 }
 
 export function useInitUser() {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+  const accessToken = useAuthStore((s) => s.accessToken);
   const fetchProfile = useUserStore((s) => s.fetchProfile);
   const fetchStorage = useUserStore((s) => s.fetchStorage);
-  const checkAdmin = useUserStore((s) => s.checkAdmin);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (accessToken) {
       fetchProfile();
       fetchStorage();
-      checkAdmin();
     }
-  }, [isAuthenticated, fetchProfile, fetchStorage, checkAdmin]);
+  }, [accessToken, fetchProfile, fetchStorage]);
 }

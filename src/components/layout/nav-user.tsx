@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
-  ChevronsUpDown, LogOut, Settings, Moon, Sun, Languages,
+  ChevronsUpDown, LogOut, Settings, Moon, Sun, Monitor, Languages,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -25,7 +25,8 @@ export function NavUser() {
   const logout = useAuthStore((s) => s.logout);
   const clear = useUserStore((s) => s.clear);
   const profile = useUserStore((s) => s.profile);
-  const { toggleTheme, theme } = useTheme();
+  const theme = useTheme((s) => s.theme);
+  const setTheme = useTheme((s) => s.setTheme);
 
   const handleLogout = () => {
     logout();
@@ -78,10 +79,26 @@ export function NavUser() {
                 <Settings />
                 {t("nav.settings")}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={toggleTheme}>
-                {theme === "dark" ? <Sun /> : <Moon />}
-                {theme === "dark" ? t("theme.light") : t("theme.dark")}
-              </DropdownMenuItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  {theme === "dark" ? <Moon /> : theme === "light" ? <Sun /> : <Monitor />}
+                  {theme === "dark" ? t("theme.dark") : theme === "light" ? t("theme.light") : t("theme.system")}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem onClick={() => setTheme("light")}>
+                    <Sun />
+                    {t("theme.light")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTheme("dark")}>
+                    <Moon />
+                    {t("theme.dark")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTheme("system")}>
+                    <Monitor />
+                    {t("theme.system")}
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
                   <Languages />

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { TokenResponse } from "@disknext/sdk";
-import { client } from "@/client";
+import type { TokenResponse } from "@/api";
+import { auth } from "@/api";
 
 let refreshInProgress: Promise<boolean> | null = null;
 
@@ -62,7 +62,7 @@ export const useAuthStore = create<AuthState>()(
           try {
             const { refreshToken } = get();
             if (!refreshToken) return false;
-            const data = await client.auth.refresh(refreshToken);
+            const data = await auth.refresh(refreshToken);
             get().setSession(data);
             return true;
           } catch {

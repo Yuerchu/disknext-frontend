@@ -128,3 +128,10 @@
     @apply font-sans;
     }
 }
+
+/* viselect 框选矩形 */
+.selection-area {
+  background: color-mix(in oklch, var(--primary) 10%, transparent);
+  border: 1px solid color-mix(in oklch, var(--primary) 30%, transparent);
+  border-radius: var(--radius-sm);
+}

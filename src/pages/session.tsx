@@ -19,15 +19,14 @@ import {
 import { useAuthStore } from "@/stores/auth";
 import { useSiteConfigStore } from "@/stores/site-config";
 import { useRequireGuest } from "@/hooks/use-auth";
-import { client } from "@/client";
-import { ApiError } from "@disknext/sdk";
+import { auth, resolveErrorMessage } from "@/api";
+import { ApiError } from "@/api";
 import { setLocale } from "@/i18n";
 
 type AuthMode = "login" | "register" | "magic-link";
 
-function getErrorMessage(e: unknown, fallback: string, statusMap?: Record<number, string>): string {
-  if (e instanceof ApiError && statusMap?.[e.status]) return statusMap[e.status]!;
-  if (e instanceof ApiError && e.message) return e.message;
+function getErrorMessage(e: unknown, fallback: string): string {
+  if (e instanceof ApiError) return resolveErrorMessage(e);
   if (e instanceof Error) return e.message;
   return fallback;
 }
@@ -69,9 +68,9 @@ export default function SessionPage() {
     const magicToken = searchParams.get("magic_token");
     if (!magicToken) return;
     setMagicLinkVerifying(true);
-    client.auth.login({ provider: "magic_link", identifier: magicToken })
+    auth.login({ provider: "magic_link", identifier: magicToken })
       .then((data) => { setSession(data); navigate("/home", { replace: true }); })
-      .catch((e) => { setError(getErrorMessage(e, t("session.magicLinkLoginFailed"), { 410: t("session.magicLinkInvalidToken") })); })
+      .catch((e) => { setError(getErrorMessage(e, t("session.magicLinkLoginFailed"))); })
       .finally(() => setMagicLinkVerifying(false));
   }, [searchParams, setSession, navigate, t]);
 
@@ -79,7 +78,7 @@ export default function SessionPage() {
     setLoading(true);
     setError("");
     try {
-      const data = await client.auth.login({
+      const data = await auth.login({
         provider: "email_password",
         identifier: loginEmail,
         credential: loginPassword,
@@ -88,14 +87,14 @@ export default function SessionPage() {
       setSession(data);
       navigate("/home", { replace: true });
     } catch (e) {
-      if (e instanceof ApiError && e.status === 428) {
+      if (e instanceof ApiError && e.is("auth.two_fa_required")) {
         setPendingCredentials({ email: loginEmail, password: loginPassword });
         setTfaRequired(true);
         setOtpCode("");
         setError("");
         return;
       }
-      setError(getErrorMessage(e, t("session.loginFailedCheck"), { 403: t("session.accountBanned"), 400: t("errors.invalidParams") }));
+      setError(getErrorMessage(e, t("session.loginFailedCheck")));
       if (tfaRequired) setOtpCode("");
     } finally {
       setLoading(false);
@@ -125,11 +124,11 @@ export default function SessionPage() {
     setLoading(true);
     setError("");
     try {
-      await client.auth.register({ provider: "email_password", identifier: email, credential: password });
+      await auth.register({ provider: "email_password", identifier: email, credential: password });
       toast.success(t("session.registerSuccess"));
       await submitLogin(email, password);
     } catch (e) {
-      setError(getErrorMessage(e, t("session.registerFailed"), { 409: t("errors.conflict"), 400: t("errors.invalidParams") }));
+      setError(getErrorMessage(e, t("session.registerFailed")));
     } finally {
       setLoading(false);
     }
@@ -142,10 +141,10 @@ export default function SessionPage() {
     setLoading(true);
     setError("");
     try {
-      await client.auth.sendMagicLink({ email });
+      await auth.sendMagicLink({ email });
       setMagicLinkSent(true);
     } catch (e) {
-      setError(getErrorMessage(e, t("errors.loginFailed"), { 400: t("errors.invalidParams"), 429: t("errors.fetchFailed") }));
+      setError(getErrorMessage(e, t("errors.loginFailed")));
     } finally {
       setLoading(false);
     }
