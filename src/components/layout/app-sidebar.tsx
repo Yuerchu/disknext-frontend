@@ -77,12 +77,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
               <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                 <Globe className="size-4" />
               </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">DiskNext</span>
-                <span className="truncate text-xs text-muted-foreground">
-                  {storage ? `${formatBytes(storage.used)} / ${formatBytes(storage.total)}` : "..."}
-                </span>
-              </div>
+              <span className="truncate font-semibold text-sm">DiskNext</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
