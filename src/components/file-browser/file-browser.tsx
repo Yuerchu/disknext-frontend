@@ -141,7 +141,8 @@ export function FileBrowser({ directory, viewMode, showThumb, loading, path, onR
     });
   }, []);
 
-  const handleSelectionStop = useCallback((_e: SelectionEvent) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleSelectionStop = useCallback((_: SelectionEvent) => {
     // onMove 已经增量更新了 selectedIds，onStop 只需清理 viselect 内部状态
     // 不在这里调用 clearSelection，让 viselect 自行管理矩形隐藏
   }, []);

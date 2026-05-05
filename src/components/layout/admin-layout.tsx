@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Outlet, useNavigate, useLocation, Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
@@ -18,18 +18,15 @@ export function AdminLayout() {
   const { t } = useTranslation();
   const isAdmin = useUserStore((s) => s.isAdmin);
   const profile = useUserStore((s) => s.profile);
-  const [adminChecked, setAdminChecked] = useState(false);
+  const adminChecked = ready && !!profile && isAdmin;
 
   useEffect(() => {
-    if (!ready || !profile) return;
-    if (!isAdmin) {
+    if (ready && profile && !isAdmin) {
       navigate("/home", { replace: true });
-    } else {
-      setAdminChecked(true);
     }
   }, [ready, profile, isAdmin, navigate]);
 
-  if (!ready || !adminChecked) return null;
+  if (!ready || !profile || !adminChecked) return null;
 
   const pathLabelMap: Record<string, string> = {
     "/admin/home": t("admin.home"),

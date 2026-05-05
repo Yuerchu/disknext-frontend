@@ -30,7 +30,7 @@ export default function ProfileSection() {
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
-  const [avatarBust, setAvatarBust] = useState(Date.now());
+  const [avatarBust, setAvatarBust] = useState(() => Date.now());
 
   if (loading || !data) {
     return (

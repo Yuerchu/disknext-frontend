@@ -182,7 +182,8 @@ export function TrashBrowser({ items: rawItems, viewMode, showThumb, loading, on
     });
   }, []);
 
-  const handleSelectionStop = useCallback((_e: SelectionEvent) => {}, []);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleSelectionStop = useCallback((_: SelectionEvent) => {}, []);
 
   const handleBackgroundClick = useCallback((e: React.MouseEvent) => {
     if (e.ctrlKey || e.metaKey || e.shiftKey) return;
