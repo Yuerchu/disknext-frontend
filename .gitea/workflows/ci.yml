@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type Check
+        run: pnpm exec tsc -b
+
+      - name: Build
+        run: pnpm build
+
+      - name: Unit & Integration Tests
+        run: pnpm test
+
+      # TODO: OpenAPI type freshness check
+      # Uncomment when backend CI produces openapi.json artifact
+      # - name: Check Generated Types
+      #   run: pnpm test:types
+
+      # E2E tests are not run on Gitea (no Playwright browser environment)
+      # Run E2E on GitHub Actions instead

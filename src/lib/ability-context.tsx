@@ -13,12 +13,17 @@ export function useAbility(): AppAbility {
 
 export function AbilityProvider({ children }: { children: React.ReactNode }) {
   const profile = useUserStore((s) => s.profile);
-  const scopes = profile?.scopes;
 
   const ability = useMemo(() => {
-    if (!scopes || scopes.length === 0) return emptyAbility();
-    return buildAbility(scopes);
-  }, [scopes]);
+    if (!profile) return emptyAbility();
+    // 合并：用户组 scopes + 用户 scopes（去重）
+    const merged = [...new Set([
+      ...(profile.group?.scopes ?? []),
+      ...(profile.scopes ?? []),
+    ])];
+    if (merged.length === 0) return emptyAbility();
+    return buildAbility(merged);
+  }, [profile]);
 
   return (
     <AbilityContext.Provider value={ability}>

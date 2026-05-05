@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Loader2, ShieldCheck, MailCheck, Languages, HardDrive } from "lucide-react";
+import { Loader2, ShieldCheck, Languages, HardDrive } from "lucide-react";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  Field, FieldDescription, FieldGroup, FieldLabel, FieldSeparator,
+  Field, FieldDescription, FieldGroup, FieldLabel,
 } from "@/components/ui/field";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -23,7 +23,7 @@ import { auth, resolveErrorMessage } from "@/api";
 import { ApiError } from "@/api";
 import { setLocale } from "@/i18n";
 
-type AuthMode = "login" | "register" | "magic-link";
+type AuthMode = "login" | "register";
 
 function getErrorMessage(e: unknown, fallback: string): string {
   if (e instanceof ApiError) return resolveErrorMessage(e);
@@ -41,7 +41,6 @@ export default function SessionPage() {
   useRequireGuest();
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const setSession = useAuthStore((s) => s.setSession);
   const siteConfig = useSiteConfigStore((s) => s.config);
   const fetchSiteConfig = useSiteConfigStore((s) => s.fetch);
@@ -58,30 +57,15 @@ export default function SessionPage() {
   const [otpCode, setOtpCode] = useState("");
   const [pendingCredentials, setPendingCredentials] = useState<{ email: string; password: string } | null>(null);
 
-  const [magicLinkSent, setMagicLinkSent] = useState(false);
-  const [magicLinkVerifying, setMagicLinkVerifying] = useState(false);
-
   useEffect(() => { fetchSiteConfig(); }, [fetchSiteConfig]);
-
-  // Handle magic link callback
-  useEffect(() => {
-    const magicToken = searchParams.get("magic_token");
-    if (!magicToken) return;
-    setMagicLinkVerifying(true);
-    auth.login({ provider: "magic_link", identifier: magicToken })
-      .then((data) => { setSession(data); navigate("/home", { replace: true }); })
-      .catch((e) => { setError(getErrorMessage(e, t("session.magicLinkLoginFailed"))); })
-      .finally(() => setMagicLinkVerifying(false));
-  }, [searchParams, setSession, navigate, t]);
 
   const submitLogin = useCallback(async (loginEmail: string, loginPassword: string, otp?: string) => {
     setLoading(true);
     setError("");
     try {
-      const data = await auth.login({
-        provider: "email_password",
-        identifier: loginEmail,
-        credential: loginPassword,
+      const data = await auth.loginEmail({
+        email: loginEmail,
+        password: loginPassword,
         two_fa_code: otp || undefined,
       });
       setSession(data);
@@ -124,27 +108,11 @@ export default function SessionPage() {
     setLoading(true);
     setError("");
     try {
-      await auth.register({ provider: "email_password", identifier: email, credential: password });
+      await auth.register({ email, password });
       toast.success(t("session.registerSuccess"));
       await submitLogin(email, password);
     } catch (e) {
       setError(getErrorMessage(e, t("session.registerFailed")));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleMagicLinkSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const result = z.object({ email: z.string().min(1, t("session.emailRequired")).email(t("session.emailInvalid")) }).safeParse({ email });
-    if (!result.success) { setError(result.error.issues[0]?.message ?? ""); return; }
-    setLoading(true);
-    setError("");
-    try {
-      await auth.sendMagicLink({ email });
-      setMagicLinkSent(true);
-    } catch (e) {
-      setError(getErrorMessage(e, t("errors.loginFailed")));
     } finally {
       setLoading(false);
     }
@@ -156,27 +124,12 @@ export default function SessionPage() {
   };
 
   const cancelTfa = () => { setTfaRequired(false); setPendingCredentials(null); setOtpCode(""); setError(""); };
-  const switchMode = (m: AuthMode) => { setMode(m); setError(""); setMagicLinkSent(false); };
+  const switchMode = (m: AuthMode) => { setMode(m); setError(""); };
 
   const registerEnabled = siteConfig?.register_enabled ?? false;
-  const magicLinkEnabled = siteConfig?.auth_methods?.some((m) => m.provider === "magic_link" && m.is_enabled) ?? false;
   const showAgreement = !!(siteConfig?.tos_url || siteConfig?.privacy_url);
 
   // --- Special states (full-screen centered cards) ---
-
-  if (magicLinkVerifying) {
-    return (
-      <CenteredWrapper>
-        <Card className="w-full max-w-sm">
-          <CardContent className="flex flex-col items-center gap-4 p-8">
-            <Loader2 className="size-10 text-primary animate-spin" />
-            <p className="text-sm text-muted-foreground">{t("session.magicLinkVerifying")}</p>
-            {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-          </CardContent>
-        </Card>
-      </CenteredWrapper>
-    );
-  }
 
   if (tfaRequired) {
     return (
@@ -209,21 +162,6 @@ export default function SessionPage() {
     );
   }
 
-  if (magicLinkSent) {
-    return (
-      <CenteredWrapper>
-        <Card className="w-full max-w-sm">
-          <CardContent className="flex flex-col items-center gap-4 p-8">
-            <MailCheck className="size-10 text-primary" />
-            <h2 className="text-lg font-semibold">{t("session.magicLinkSent")}</h2>
-            <p className="text-sm text-muted-foreground text-center">{t("session.magicLinkSentHint")}</p>
-            <Button variant="outline" onClick={() => switchMode("login")}>{t("session.backToLogin")}</Button>
-          </CardContent>
-        </Card>
-      </CenteredWrapper>
-    );
-  }
-
   // --- Main form (login-04 layout: card with form + cover image) ---
   return (
     <CenteredWrapper>
@@ -233,19 +171,15 @@ export default function SessionPage() {
             {/* Left: form */}
             <form
               className="p-6 md:p-8"
-              onSubmit={mode === "login" ? handleLoginSubmit : mode === "register" ? handleRegisterSubmit : handleMagicLinkSubmit}
+              onSubmit={mode === "login" ? handleLoginSubmit : handleRegisterSubmit}
             >
               <FieldGroup>
                 <div className="flex flex-col items-center gap-2 text-center">
                   <h1 className="text-2xl font-bold">
-                    {mode === "login" && t("session.loginTitle")}
-                    {mode === "register" && t("session.registerTitle")}
-                    {mode === "magic-link" && t("session.magicLinkTitle")}
+                    {mode === "login" ? t("session.loginTitle") : t("session.registerTitle")}
                   </h1>
                   <p className="text-balance text-sm text-muted-foreground">
-                    {mode === "login" && t("session.description")}
-                    {mode === "register" && t("session.description")}
-                    {mode === "magic-link" && t("session.magicLinkDesc")}
+                    {t("session.description")}
                   </p>
                 </div>
 
@@ -265,17 +199,15 @@ export default function SessionPage() {
                   />
                 </Field>
 
-                {/* Password (not for magic-link) */}
-                {mode !== "magic-link" && (
-                  <Field>
-                    <FieldLabel htmlFor="password">{t("session.password")}</FieldLabel>
-                    <Input
-                      id="password" type="password" placeholder={t("session.passwordPlaceholder")}
-                      value={password} onChange={(e) => setPassword(e.target.value)}
-                      disabled={loading} required
-                    />
-                  </Field>
-                )}
+                {/* Password */}
+                <Field>
+                  <FieldLabel htmlFor="password">{t("session.password")}</FieldLabel>
+                  <Input
+                    id="password" type="password" placeholder={t("session.passwordPlaceholder")}
+                    value={password} onChange={(e) => setPassword(e.target.value)}
+                    disabled={loading} required
+                  />
+                </Field>
 
                 {/* Confirm password (register only) */}
                 {mode === "register" && (
@@ -293,26 +225,9 @@ export default function SessionPage() {
                 <Field>
                   <Button type="submit" disabled={loading} className="w-full">
                     {loading && <Loader2 className="mr-2 size-4 animate-spin" />}
-                    {mode === "login" && t("session.submit")}
-                    {mode === "register" && t("session.registerSubmit")}
-                    {mode === "magic-link" && t("session.sendMagicLink")}
+                    {mode === "login" ? t("session.submit") : t("session.registerSubmit")}
                   </Button>
                 </Field>
-
-                {/* Magic link toggle */}
-                {mode === "login" && magicLinkEnabled && (
-                  <>
-                    <FieldSeparator className="*:data-[slot=field-separator-content]:bg-card">
-                      {t("session.useMagicLink")}
-                    </FieldSeparator>
-                    <Field>
-                      <Button type="button" variant="outline" className="w-full" onClick={() => switchMode("magic-link")}>
-                        <MailCheck className="mr-2 size-4" />
-                        Magic Link
-                      </Button>
-                    </Field>
-                  </>
-                )}
 
                 {/* Mode switch links */}
                 <FieldDescription className="text-center">
@@ -331,11 +246,6 @@ export default function SessionPage() {
                         {t("session.loginLink")}
                       </button>
                     </>
-                  )}
-                  {mode === "magic-link" && (
-                    <button type="button" className="underline underline-offset-4 hover:text-primary" onClick={() => switchMode("login")}>
-                      {t("session.backToLogin")}
-                    </button>
                   )}
                 </FieldDescription>
               </FieldGroup>

@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from "react-router";
 import {
   Home, Globe, ShieldCheck, Mail, Palette, FolderTree, Eye,
   Database, Server, Users, UserCog, File, Share2, ListTodo, ArrowLeft, AppWindow,
+  UserPlus, Image, Smartphone, Wrench,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup,
@@ -29,10 +30,14 @@ export function AdminSidebar(props: React.ComponentProps<typeof Sidebar>) {
 
   const settingsItems: NavItem[] = [
     { path: "/admin/settings/site", icon: Globe, label: t("admin.site"), scope: "admin.settings" },
-    { path: "/admin/settings/session", icon: ShieldCheck, label: t("admin.session"), scope: "admin.settings" },
+    { path: "/admin/settings/register", icon: UserPlus, label: t("admin.register"), scope: "admin.settings" },
     { path: "/admin/settings/captcha", icon: ShieldCheck, label: t("admin.captcha"), scope: "admin.settings" },
     { path: "/admin/settings/mail", icon: Mail, label: t("admin.mail"), scope: "admin.settings" },
+    { path: "/admin/settings/avatar", icon: Image, label: t("admin.avatar"), scope: "admin.settings" },
+    { path: "/admin/settings/pwa", icon: Smartphone, label: t("admin.pwa"), scope: "admin.settings" },
     { path: "/admin/settings/appearance", icon: Palette, label: t("admin.appearance"), scope: "admin.themes" },
+    { path: "/admin/settings/task", icon: ListTodo, label: t("admin.taskSettings"), scope: "admin.settings" },
+    { path: "/admin/settings/advanced", icon: Wrench, label: t("admin.advanced"), scope: "admin.settings" },
   ];
 
   const fsItems: NavItem[] = [
@@ -57,22 +62,12 @@ export function AdminSidebar(props: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              size="lg"
-              onClick={() => navigate("/admin/home")}
-              className="data-[slot=sidebar-menu-button]:p-1.5!"
-            >
-              <div className="flex size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                <ShieldCheck className="size-4" />
-              </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">{t("admin.title")}</span>
-              </div>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <div className="flex items-center gap-2 p-1.5">
+          <div className="flex size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+            <ShieldCheck className="size-4" />
+          </div>
+          <span className="truncate text-sm font-semibold">{t("admin.title")}</span>
+        </div>
       </SidebarHeader>
 
       <SidebarContent>

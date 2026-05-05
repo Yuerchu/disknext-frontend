@@ -1,14 +1,13 @@
 import { create } from "zustand";
 import type { UserResponse, UserStorageResponse } from "@/api";
 import { user } from "@/api";
-import { hasAnyAdminScope } from "@/lib/ability";
 
 interface UserState {
   profile: UserResponse | null;
   storage: UserStorageResponse | null;
   lastError: string | null;
 
-  /** 是否拥有任意 admin.* scope（从 profile.scopes 派生） */
+  /** 是否为管理员（从 profile.group.admin 派生） */
   isAdmin: boolean;
 
   fetchProfile: () => Promise<void>;
@@ -27,7 +26,7 @@ export const useUserStore = create<UserState>()((set) => ({
       const profile = await user.me();
       set({
         profile,
-        isAdmin: hasAnyAdminScope(profile.scopes ?? []),
+        isAdmin: profile.group?.admin ?? false,
         lastError: null,
       });
     } catch (e) {

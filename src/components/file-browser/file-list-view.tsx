@@ -13,7 +13,7 @@ import type { FileActions } from "./file-context-menu";
 import type { EntryResponse } from "@/api";
 import { cn } from "@/lib/utils";
 import {
-  FolderOpen, Download, Pencil, Share2, Trash2, FolderPlus, FilePlus, RefreshCw,
+  FolderOpen, Download, Pencil, Share2, Undo2, Trash2, FolderPlus, FilePlus, RefreshCw,
 } from "lucide-react";
 
 function formatBytes(bytes: number): string {
@@ -39,9 +39,10 @@ interface FileListViewProps {
   onNavigate: (entry: EntryResponse) => void;
   onRefresh: () => void;
   actions: FileActions;
+  dateColumnLabel?: string;
 }
 
-export function FileListView({ items, selectedIds, onSelect, onSelectAll, onNavigate, actions }: FileListViewProps) {
+export function FileListView({ items, selectedIds, onSelect, onSelectAll, onNavigate, actions, dateColumnLabel }: FileListViewProps) {
   const { t } = useTranslation();
   const lastClickedRef = useRef<number>(-1);
   const [contextEntry, setContextEntry] = useState<EntryResponse | null>(null);
@@ -75,7 +76,7 @@ export function FileListView({ items, selectedIds, onSelect, onSelectAll, onNavi
               </TableHead>
               <TableHead>{t("file.name")}</TableHead>
               <TableHead className="w-24 text-right">{t("file.size")}</TableHead>
-              <TableHead className="w-40 text-right">{t("file.modifiedAt")}</TableHead>
+              <TableHead className="w-40 text-right">{dateColumnLabel ?? t("file.modifiedAt")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -120,44 +121,70 @@ export function FileListView({ items, selectedIds, onSelect, onSelectAll, onNavi
 
       <ContextMenuContent className="w-56">
         {contextEntry ? (
+          actions.onRestore ? (
+            /* Trash mode: restore + permanent delete */
+            <>
+              <ContextMenuItem onClick={() => actions.onRestore?.([contextEntry])}>
+                <Undo2 className="mr-2 size-4" />{t("trash.restore")}
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem className="text-destructive" onClick={() => actions.onPermanentDelete?.([contextEntry])}>
+                <Trash2 className="mr-2 size-4" />{t("trash.permanentDelete")}
+              </ContextMenuItem>
+            </>
+          ) : (
+            /* File browser mode */
+            <>
+              {contextEntry.type === "folder" ? (
+                <>
+                  <ContextMenuItem onClick={() => actions.onNavigate(contextEntry)}>
+                    <FolderOpen className="mr-2 size-4" />{t("contextMenu.open")}
+                  </ContextMenuItem>
+                  <ContextMenuItem onClick={() => actions.onShare(contextEntry)}>
+                    <Share2 className="mr-2 size-4" />{t("contextMenu.share")}
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem onClick={() => actions.onRename(contextEntry)}>
+                    <Pencil className="mr-2 size-4" />{t("common.rename")}
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem className="text-destructive" onClick={() => actions.onDelete([contextEntry])}>
+                    <Trash2 className="mr-2 size-4" />{t("common.delete")}
+                  </ContextMenuItem>
+                </>
+              ) : (
+                <>
+                  <ContextMenuItem onClick={() => actions.onDownload(contextEntry)}>
+                    <Download className="mr-2 size-4" />{t("common.download")}
+                  </ContextMenuItem>
+                  <ContextMenuItem onClick={() => actions.onShare(contextEntry)}>
+                    <Share2 className="mr-2 size-4" />{t("contextMenu.share")}
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem onClick={() => actions.onRename(contextEntry)}>
+                    <Pencil className="mr-2 size-4" />{t("common.rename")}
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem className="text-destructive" onClick={() => actions.onDelete([contextEntry])}>
+                    <Trash2 className="mr-2 size-4" />{t("common.delete")}
+                  </ContextMenuItem>
+                </>
+              )}
+            </>
+          )
+        ) : actions.onEmptyTrash ? (
+          /* Trash mode background */
           <>
-            {contextEntry.type === "folder" ? (
-              <>
-                <ContextMenuItem onClick={() => actions.onNavigate(contextEntry)}>
-                  <FolderOpen className="mr-2 size-4" />{t("contextMenu.open")}
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => actions.onShare(contextEntry)}>
-                  <Share2 className="mr-2 size-4" />{t("contextMenu.share")}
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                <ContextMenuItem onClick={() => actions.onRename(contextEntry)}>
-                  <Pencil className="mr-2 size-4" />{t("common.rename")}
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                <ContextMenuItem className="text-destructive" onClick={() => actions.onDelete([contextEntry])}>
-                  <Trash2 className="mr-2 size-4" />{t("common.delete")}
-                </ContextMenuItem>
-              </>
-            ) : (
-              <>
-                <ContextMenuItem onClick={() => actions.onDownload(contextEntry)}>
-                  <Download className="mr-2 size-4" />{t("common.download")}
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => actions.onShare(contextEntry)}>
-                  <Share2 className="mr-2 size-4" />{t("contextMenu.share")}
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                <ContextMenuItem onClick={() => actions.onRename(contextEntry)}>
-                  <Pencil className="mr-2 size-4" />{t("common.rename")}
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                <ContextMenuItem className="text-destructive" onClick={() => actions.onDelete([contextEntry])}>
-                  <Trash2 className="mr-2 size-4" />{t("common.delete")}
-                </ContextMenuItem>
-              </>
-            )}
+            <ContextMenuItem className="text-destructive" onClick={actions.onEmptyTrash}>
+              <Trash2 className="mr-2 size-4" />{t("trash.emptyTrash")}
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem onClick={actions.onRefresh}>
+              <RefreshCw className="mr-2 size-4" />{t("contextMenu.refresh")}
+            </ContextMenuItem>
           </>
         ) : (
+          /* File browser mode background */
           <>
             <ContextMenuItem onClick={actions.onCreateFolder}>
               <FolderPlus className="mr-2 size-4" />{t("contextMenu.createFolder")}

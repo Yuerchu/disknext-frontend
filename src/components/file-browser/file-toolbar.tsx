@@ -75,8 +75,8 @@ export function FileToolbar({ path, viewMode, showThumb, onViewModeChange, onSho
         <div className="flex items-center rounded-md border">
           {viewModes.map((mode) => (
             <Tooltip key={mode.value}>
-              <TooltipTrigger>
-                <Button
+              <TooltipTrigger
+                render={<Button
                   variant="ghost"
                   size="icon"
                   className={cn(
@@ -84,9 +84,9 @@ export function FileToolbar({ path, viewMode, showThumb, onViewModeChange, onSho
                     viewMode === mode.value && "bg-accent",
                   )}
                   onClick={() => onViewModeChange(mode.value)}
-                >
-                  <mode.icon className="size-4" />
-                </Button>
+                />}
+              >
+                <mode.icon className="size-4" />
               </TooltipTrigger>
               <TooltipContent>{t(mode.labelKey)}</TooltipContent>
             </Tooltip>
@@ -95,10 +95,10 @@ export function FileToolbar({ path, viewMode, showThumb, onViewModeChange, onSho
 
         {/* Thumbnail toggle */}
         <Tooltip>
-          <TooltipTrigger>
-            <Toggle size="sm" pressed={showThumb} onPressedChange={onShowThumbChange}>
-              {showThumb ? <Image className="size-4" /> : <ImageOff className="size-4" />}
-            </Toggle>
+          <TooltipTrigger
+            render={<Toggle size="sm" pressed={showThumb} onPressedChange={onShowThumbChange} />}
+          >
+            {showThumb ? <Image className="size-4" /> : <ImageOff className="size-4" />}
           </TooltipTrigger>
           <TooltipContent>
             {showThumb ? t("file.hideThumb") : t("file.showThumb")}

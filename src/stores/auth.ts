@@ -58,10 +58,11 @@ export const useAuthStore = create<AuthState>()(
       refresh: async () => {
         if (refreshInProgress) return refreshInProgress;
 
+        const { refreshToken } = get();
+        if (!refreshToken) return false;
+
         refreshInProgress = (async () => {
           try {
-            const { refreshToken } = get();
-            if (!refreshToken) return false;
             const data = await auth.refresh(refreshToken);
             get().setSession(data);
             return true;

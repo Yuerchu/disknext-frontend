@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import {
-  FolderOpen, Download, Pencil, Share2,
+  FolderOpen, Download, Pencil, Share2, Undo2,
   Trash2, FolderPlus, FilePlus, RefreshCw,
 } from "lucide-react";
 import {
@@ -13,7 +13,11 @@ export type MenuTarget =
   | { type: "empty" }
   | { type: "file"; entry: EntryResponse }
   | { type: "folder"; entry: EntryResponse }
-  | { type: "batch"; count: number };
+  | { type: "batch"; count: number }
+  | { type: "trash-file"; entry: EntryResponse }
+  | { type: "trash-folder"; entry: EntryResponse }
+  | { type: "trash-batch"; count: number }
+  | { type: "trash-empty" };
 
 export interface FileActions {
   onRefresh: () => void;
@@ -24,6 +28,9 @@ export interface FileActions {
   onDelete: (entries: EntryResponse[]) => void;
   onDownload: (entry: EntryResponse) => void;
   onShare: (entry: EntryResponse) => void;
+  onRestore?: (entries: EntryResponse[]) => void;
+  onPermanentDelete?: (entries: EntryResponse[]) => void;
+  onEmptyTrash?: () => void;
 }
 
 interface FileContextMenuProps {
@@ -114,6 +121,53 @@ export function FileContextMenu({ children, target, actions, selectedEntries, cl
             >
               <Trash2 className="mr-2 size-4" />
               {t("common.delete")} ({target.count})
+            </ContextMenuItem>
+          </>
+        )}
+
+        {(target.type === "trash-file" || target.type === "trash-folder") && (
+          <>
+            <ContextMenuItem onClick={() => actions.onRestore?.([target.entry])}>
+              <Undo2 className="mr-2 size-4" />
+              {t("trash.restore")}
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem className="text-destructive" onClick={() => actions.onPermanentDelete?.([target.entry])}>
+              <Trash2 className="mr-2 size-4" />
+              {t("trash.permanentDelete")}
+            </ContextMenuItem>
+          </>
+        )}
+
+        {target.type === "trash-batch" && (
+          <>
+            <ContextMenuItem onClick={() => { if (selectedEntries) actions.onRestore?.(selectedEntries); }}>
+              <Undo2 className="mr-2 size-4" />
+              {t("trash.restore")} ({target.count})
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              className="text-destructive"
+              onClick={() => { if (selectedEntries) actions.onPermanentDelete?.(selectedEntries); }}
+            >
+              <Trash2 className="mr-2 size-4" />
+              {t("trash.permanentDelete")} ({target.count})
+            </ContextMenuItem>
+          </>
+        )}
+
+        {target.type === "trash-empty" && (
+          <>
+            {actions.onEmptyTrash && (
+              <ContextMenuItem className="text-destructive" onClick={actions.onEmptyTrash}>
+                <Trash2 className="mr-2 size-4" />
+                {t("trash.emptyTrash")}
+              </ContextMenuItem>
+            )}
+            <ContextMenuSeparator />
+            <ContextMenuItem onClick={actions.onRefresh}>
+              <RefreshCw className="mr-2 size-4" />
+              {t("contextMenu.refresh")}
             </ContextMenuItem>
           </>
         )}
