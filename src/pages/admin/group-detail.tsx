@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, useNavigate } from "react-router";
 import { toast } from "sonner";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/query-keys";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -12,10 +14,14 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
-import { ArrowLeft, Loader2, Save, Users, ChevronLeft, ChevronRight } from "lucide-react";
-import { adminGroup, resolveErrorMessage } from "@/api";
-import type { AdminGroupResponse, AdminGroupUpdateRequest, AdminUserResponse } from "@/api";
+import {
+  Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious,
+} from "@/components/ui/pagination";
+import { Loader2, Save, Users, Plus } from "lucide-react";
+import { adminGroup } from "@/api";
+import type { AdminGroupCreateRequest, AdminGroupUpdateRequest } from "@/api";
 import { ScopePicker } from "@/components/admin/scope-picker";
+import { cn } from "@/lib/utils";
 
 const MEMBERS_PAGE_SIZE = 20;
 
@@ -37,10 +43,15 @@ export default function AdminGroupDetailPage() {
   const { t } = useTranslation();
   const { groupId } = useParams<{ groupId: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  const [group, setGroup] = useState<AdminGroupResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const isCreate = groupId === "new";
+
+  const groupQuery = useQuery({
+    queryKey: queryKeys.adminGroup(groupId!),
+    queryFn: () => adminGroup.get(groupId!),
+    enabled: !!groupId && !isCreate,
+  });
 
   // Form state
   const [formName, setFormName] = useState("");
@@ -51,79 +62,85 @@ export default function AdminGroupDetailPage() {
   const [formPolicyIds, setFormPolicyIds] = useState("");
 
   // Members
-  const [members, setMembers] = useState<AdminUserResponse[]>([]);
-  const [membersTotal, setMembersTotal] = useState(0);
   const [membersPage, setMembersPage] = useState(0);
-  const [membersLoading, setMembersLoading] = useState(true);
 
-  const loadGroup = useCallback(async () => {
-    if (!groupId) return;
-    setLoading(true);
-    try {
-      const data = await adminGroup.get(groupId);
-      setGroup(data);
-      setFormName(data.name);
-      setFormMaxStorage(String(data.max_storage));
-      setFormSpeedLimit(String(data.speed_limit));
-      setFormAdmin(data.admin);
-      setFormScopes([...data.scopes]);
-      setFormPolicyIds(data.policy_ids.join(", "));
-    } catch (err) {
-      toast.error(resolveErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [groupId]);
+  const membersQuery = useQuery({
+    queryKey: queryKeys.adminGroupMembers(groupId!, {
+      offset: membersPage * MEMBERS_PAGE_SIZE,
+      limit: MEMBERS_PAGE_SIZE,
+    }),
+    queryFn: () => adminGroup.members(groupId!, {
+      offset: membersPage * MEMBERS_PAGE_SIZE,
+      limit: MEMBERS_PAGE_SIZE,
+    }),
+    enabled: !!groupId && !isCreate,
+    placeholderData: keepPreviousData,
+  });
 
-  const loadMembers = useCallback(async () => {
-    if (!groupId) return;
-    setMembersLoading(true);
-    try {
-      const data = await adminGroup.members(groupId, {
-        offset: membersPage * MEMBERS_PAGE_SIZE,
-        limit: MEMBERS_PAGE_SIZE,
-      });
-      setMembers(data.items);
-      setMembersTotal(data.count);
-    } catch (err) {
-      toast.error(resolveErrorMessage(err));
-    } finally {
-      setMembersLoading(false);
-    }
-  }, [groupId, membersPage]);
+  const members = membersQuery.data?.items ?? [];
+  const membersTotal = membersQuery.data?.count ?? 0;
 
+  // Initialize form from query data
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    loadGroup();
-  }, [loadGroup]);
+    if (!groupQuery.data) return;
+    const data = groupQuery.data;
+    setFormName(data.name);
+    setFormMaxStorage(String(data.max_storage));
+    setFormSpeedLimit(String(data.speed_limit));
+    setFormAdmin(data.admin);
+    setFormScopes([...data.scopes]);
+    setFormPolicyIds(data.policy_ids.join(", "));
+  }, [groupQuery.data]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
-  useEffect(() => {
-    loadMembers();
-  }, [loadMembers]);
+  const updateMutation = useMutation({
+    mutationFn: (req: AdminGroupUpdateRequest) => adminGroup.update(groupId!, req),
+    onSuccess: () => {
+      toast.success(t("adminGroup.updateSuccess"));
+      queryClient.invalidateQueries({ queryKey: queryKeys.adminGroup(groupId!) });
+      queryClient.invalidateQueries({ queryKey: ["admin", "groups"] });
+    },
+  });
 
-  const handleSave = async () => {
-    if (!groupId || !formName.trim()) return;
-    setSaving(true);
-    try {
-      const policyIds = formPolicyIds.trim() ? formPolicyIds.split(",").map((s) => s.trim()).filter(Boolean) : [];
-      const req: AdminGroupUpdateRequest = {
+  const createMutation = useMutation({
+    mutationFn: (req: AdminGroupCreateRequest) => adminGroup.create(req),
+    onSuccess: () => {
+      toast.success(t("adminGroup.createSuccess"));
+      queryClient.invalidateQueries({ queryKey: ["admin", "groups"] });
+      navigate("/admin/groups");
+    },
+  });
+
+  const buildPolicyIds = () =>
+    formPolicyIds.trim() ? formPolicyIds.split(",").map((s) => s.trim()).filter(Boolean) : [];
+
+  const handleSave = () => {
+    if (!formName.trim()) return;
+    if (isCreate) {
+      createMutation.mutate({
         name: formName.trim(),
         max_storage: parseInt(formMaxStorage) || 0,
         speed_limit: parseInt(formSpeedLimit) || 0,
         admin: formAdmin,
         scopes: formScopes,
-        policy_ids: policyIds,
-      };
-      await adminGroup.update(groupId, req);
-      toast.success(t("adminGroup.updateSuccess"));
-      loadGroup();
-    } catch (err) {
-      toast.error(resolveErrorMessage(err));
-    } finally {
-      setSaving(false);
+        policy_ids: buildPolicyIds(),
+      });
+    } else {
+      updateMutation.mutate({
+        name: formName.trim(),
+        max_storage: parseInt(formMaxStorage) || 0,
+        speed_limit: parseInt(formSpeedLimit) || 0,
+        admin: formAdmin,
+        scopes: formScopes,
+        policy_ids: buildPolicyIds(),
+      });
     }
   };
 
-  if (loading || !group) {
+  const isPending = isCreate ? createMutation.isPending : updateMutation.isPending;
+
+  if (!isCreate && (groupQuery.isLoading || !groupQuery.data)) {
     return (
       <div className="max-w-4xl flex flex-col gap-6">
         {Array.from({ length: 3 }).map((_, i) => (
@@ -135,18 +152,29 @@ export default function AdminGroupDetailPage() {
 
   const membersTotalPages = Math.ceil(membersTotal / MEMBERS_PAGE_SIZE);
 
+  const getMemberPageNumbers = () => {
+    const pages: (number | "ellipsis")[] = [];
+    if (membersTotalPages <= 7) {
+      for (let i = 0; i < membersTotalPages; i++) pages.push(i);
+    } else {
+      pages.push(0);
+      if (membersPage > 2) pages.push("ellipsis");
+      const start = Math.max(1, membersPage - 1);
+      const end = Math.min(membersTotalPages - 2, membersPage + 1);
+      for (let i = start; i <= end; i++) pages.push(i);
+      if (membersPage < membersTotalPages - 3) pages.push("ellipsis");
+      pages.push(membersTotalPages - 1);
+    }
+    return pages;
+  };
+
   return (
     <div className="max-w-4xl flex flex-col gap-6">
-      <Button variant="ghost" size="sm" className="w-fit" onClick={() => navigate("/admin/groups")}>
-        <ArrowLeft className="mr-2 size-4" />
-        {t("common.back")}
-      </Button>
-
       {/* Basic info */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("adminGroup.basicInfo")}</CardTitle>
-          <CardDescription>{t("adminGroup.basicInfoDesc")}</CardDescription>
+          <CardTitle>{isCreate ? t("adminGroup.createGroup") : t("adminGroup.basicInfo")}</CardTitle>
+          <CardDescription>{isCreate ? t("adminGroup.noGroupsHint") : t("adminGroup.basicInfoDesc")}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
           <div className="grid gap-2">
@@ -200,87 +228,118 @@ export default function AdminGroupDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Save button */}
+      {/* Save / Create button */}
       <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Save className="mr-2 size-4" />}
-          {t("common.save")}
+        <Button onClick={handleSave} disabled={isPending || !formName.trim()}>
+          {isPending ? (
+            <Loader2 className="mr-2 size-4 animate-spin" />
+          ) : isCreate ? (
+            <Plus className="mr-2 size-4" />
+          ) : (
+            <Save className="mr-2 size-4" />
+          )}
+          {isCreate ? t("common.create") : t("common.save")}
         </Button>
       </div>
 
-      {/* Members */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("adminGroup.members")} ({membersTotal})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {membersLoading ? (
-            <div className="flex flex-col gap-3">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-5 w-full" />
-              ))}
-            </div>
-          ) : members.length === 0 ? (
-            <Empty>
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <Users />
-                </EmptyMedia>
-                <EmptyTitle>{t("adminGroup.noMembers")}</EmptyTitle>
-                <EmptyDescription />
-              </EmptyHeader>
-            </Empty>
-          ) : (
-            <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t("adminUser.email")}</TableHead>
-                    <TableHead>{t("adminUser.nickname")}</TableHead>
-                    <TableHead className="w-28 text-right">{t("adminUser.storage")}</TableHead>
-                    <TableHead className="w-40 text-right">{t("adminUser.createdAt")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {members.map((member) => (
-                    <TableRow key={member.id}>
-                      <TableCell>
-                        <button
-                          className="hover:underline cursor-pointer text-left"
-                          onClick={() => navigate(`/admin/users/${member.id}`)}
-                        >
-                          {member.email}
-                        </button>
-                      </TableCell>
-                      <TableCell>{member.nickname}</TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        {formatBytes(member.storage)}
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        {formatDate(member.created_at)}
-                      </TableCell>
+      {/* Members (only for existing groups) */}
+      {!isCreate && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("adminGroup.members")} ({membersTotal})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {membersQuery.isLoading ? (
+              <div className="flex flex-col gap-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-5 w-full" />
+                ))}
+              </div>
+            ) : members.length === 0 ? (
+              <Empty>
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <Users />
+                  </EmptyMedia>
+                  <EmptyTitle>{t("adminGroup.noMembers")}</EmptyTitle>
+                  <EmptyDescription />
+                </EmptyHeader>
+              </Empty>
+            ) : (
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t("adminUser.email")}</TableHead>
+                      <TableHead>{t("adminUser.nickname")}</TableHead>
+                      <TableHead className="w-28 text-right">{t("adminUser.storage")}</TableHead>
+                      <TableHead className="w-40 text-right">{t("adminUser.registeredAt")}</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {members.map((member) => (
+                      <TableRow key={member.id}>
+                        <TableCell>
+                          <button
+                            className="hover:underline cursor-pointer text-left"
+                            onClick={() => navigate(`/admin/users/${member.id}`)}
+                          >
+                            {member.email}
+                          </button>
+                        </TableCell>
+                        <TableCell>{member.nickname}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {formatBytes(member.storage)}
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {formatDate(member.created_at)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
 
-              {membersTotalPages > 1 && (
-                <div className="mt-4 flex items-center justify-center gap-2">
-                  <Button variant="outline" size="icon" className="size-8" disabled={membersPage === 0} onClick={() => setMembersPage(membersPage - 1)}>
-                    <ChevronLeft className="size-4" />
-                  </Button>
-                  <span className="text-sm text-muted-foreground">
-                    {membersPage + 1} / {membersTotalPages}
-                  </span>
-                  <Button variant="outline" size="icon" className="size-8" disabled={membersPage >= membersTotalPages - 1} onClick={() => setMembersPage(membersPage + 1)}>
-                    <ChevronRight className="size-4" />
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+                {membersTotalPages > 1 && (
+                  <Pagination className="mt-4">
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          text={t("common.previousPage")}
+                          onClick={() => setMembersPage(Math.max(0, membersPage - 1))}
+                          className={cn(membersPage === 0 && "pointer-events-none opacity-50")}
+                        />
+                      </PaginationItem>
+                      {getMemberPageNumbers().map((p, i) =>
+                        p === "ellipsis" ? (
+                          <PaginationItem key={`e${i}`}>
+                            <PaginationEllipsis />
+                          </PaginationItem>
+                        ) : (
+                          <PaginationItem key={p}>
+                            <PaginationLink
+                              isActive={p === membersPage}
+                              onClick={() => setMembersPage(p)}
+                            >
+                              {p + 1}
+                            </PaginationLink>
+                          </PaginationItem>
+                        )
+                      )}
+                      <PaginationItem>
+                        <PaginationNext
+                          text={t("common.nextPage")}
+                          onClick={() => setMembersPage(Math.min(membersTotalPages - 1, membersPage + 1))}
+                          className={cn(membersPage >= membersTotalPages - 1 && "pointer-events-none opacity-50")}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

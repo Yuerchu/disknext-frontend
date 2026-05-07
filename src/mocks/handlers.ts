@@ -37,16 +37,26 @@ export const mockStorageResponse = {
 };
 
 export const mockSiteConfigResponse = {
-  title: "Test DiskNext",
-  site_notice: null,
+  site_name: "Test DiskNext",
+  site_notice_public: null,
   logo_light: null,
   logo_dark: null,
-  register_enabled: true,
-  login_captcha: false,
-  reg_captcha: false,
-  forget_captcha: false,
-  captcha_type: "recaptcha",
-  captcha_key: null,
+  is_register_enabled: true,
+  is_login_captcha: false,
+  is_reg_captcha: false,
+  is_forget_captcha: false,
+  captcha_type: "default",
+  captcha_recaptcha_key: null,
+  captcha_cloudflare_key: null,
+  auth_methods: [],
+  is_auth_password_required: true,
+  is_auth_phone_binding_required: false,
+  is_auth_email_binding_required: true,
+  avatar_size: 2097152,
+  gravatar_server: "https://www.gravatar.com/",
+  footer_code: null,
+  tos_url: null,
+  privacy_url: null,
 };
 
 export const handlers = [

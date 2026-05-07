@@ -9,12 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { userSettings, resolveErrorMessage } from "@/api";
-import { useSettings } from "@/hooks/use-settings";
 import { useUserStore } from "@/stores/user";
+import { useSiteConfigStore } from "@/stores/site-config";
 import { setLocale } from "@/i18n";
-
-const API_BASE = import.meta.env.VITE_API_URL || "";
+import { queryKeys } from "@/lib/query-keys";
+import { getAvatarUrl } from "@/lib/avatar";
 
 const TIMEZONE_OPTIONS = Array.from({ length: 27 }, (_, i) => {
   const offset = i - 12;
@@ -24,10 +25,28 @@ const TIMEZONE_OPTIONS = Array.from({ length: 27 }, (_, i) => {
 
 export default function ProfileSection() {
   const { t } = useTranslation();
-  const { data, loading, saving, save, update } = useSettings(
-    userSettings,
-    t("userSettings.saveSuccess"),
-  );
+  const queryClient = useQueryClient();
+  const siteConfig = useSiteConfigStore((s) => s.config);
+  const userProfile = useUserStore((s) => s.profile);
+  const query = useQuery({ queryKey: queryKeys.userSettings(), queryFn: userSettings.get });
+  const [data, setData] = useState(query.data ?? null);
+  const loading = query.isLoading;
+
+  // Sync server data to local form state
+  if (query.data && data === null) setData(query.data);
+
+  const mutation = useMutation({
+    mutationFn: (updates: Parameters<typeof userSettings.update>[0]) => userSettings.update(updates),
+    onSuccess: () => {
+      toast.success(t("userSettings.saveSuccess"));
+      queryClient.invalidateQueries({ queryKey: queryKeys.userSettings() });
+    },
+  });
+  const saving = mutation.isPending;
+  const save = (updates: Parameters<typeof userSettings.update>[0]) => mutation.mutate(updates);
+  const update = <K extends keyof NonNullable<typeof data>>(key: K, value: NonNullable<typeof data>[K]) => {
+    setData((prev) => prev ? { ...prev, [key]: value } : prev);
+  };
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarBust, setAvatarBust] = useState(() => Date.now());
@@ -42,7 +61,11 @@ export default function ProfileSection() {
     );
   }
 
-  const avatarUrl = `${API_BASE}/api/v1/user/avatar/${data.id}/128?t=${avatarBust}`;
+  const avatarType = userProfile?.avatar ?? "default";
+  const baseAvatarUrl = siteConfig
+    ? getAvatarUrl({ id: data.id, email: data.email, avatar: avatarType }, siteConfig.gravatar_server)
+    : null;
+  const avatarUrl = baseAvatarUrl ? `${baseAvatarUrl}${baseAvatarUrl.includes("?") ? "&" : "?"}t=${avatarBust}` : null;
 
   const refreshAfterAvatarChange = () => {
     setAvatarBust(Date.now());
@@ -120,11 +143,17 @@ export default function ProfileSection() {
           <CardDescription>{t("userSettings.profile.avatarDesc")}</CardDescription>
         </CardHeader>
         <CardContent className="flex items-center gap-6">
-          <img
-            src={avatarUrl}
-            alt="avatar"
-            className="size-20 rounded-full object-cover bg-muted"
-          />
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt="avatar"
+              className="size-20 rounded-full object-cover bg-muted"
+            />
+          ) : (
+            <div className="flex size-20 items-center justify-center rounded-full bg-muted text-2xl font-semibold text-muted-foreground">
+              {data.nickname.slice(0, 2).toUpperCase()}
+            </div>
+          )}
           <div className="flex flex-col gap-2">
             <div className="flex gap-2">
               <input
@@ -173,19 +202,13 @@ export default function ProfileSection() {
           <CardDescription>{t("userSettings.profile.infoDesc")}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label>{t("userSettings.profile.nickname")}</Label>
-              <Input
-                value={data.nickname}
-                onChange={(e) => update("nickname", e.target.value)}
-                placeholder={t("userSettings.profile.nicknamePlaceholder")}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>{t("userSettings.profile.email")}</Label>
-              <Input value={data.email} disabled />
-            </div>
+          <div className="grid gap-2">
+            <Label>{t("userSettings.profile.nickname")}</Label>
+            <Input
+              value={data.nickname}
+              onChange={(e) => update("nickname", e.target.value)}
+              placeholder={t("userSettings.profile.nicknamePlaceholder")}
+            />
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div className="grid gap-2">

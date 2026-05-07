@@ -7,11 +7,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { adminSettings } from "@/api";
-import { useSettings } from "@/hooks/use-settings";
+import { useAdminSettings } from "@/hooks/use-admin-settings";
 
 export default function AppearanceSettingsPage() {
   const { t } = useTranslation();
-  const { data, loading, saving, save, update } = useSettings(
+  const { data, loading, saving, save, update } = useAdminSettings(
+    "appearance",
     adminSettings.appearance,
     t("adminSettings.saveSuccess"),
   );

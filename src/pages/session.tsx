@@ -126,7 +126,7 @@ export default function SessionPage() {
   const cancelTfa = () => { setTfaRequired(false); setPendingCredentials(null); setOtpCode(""); setError(""); };
   const switchMode = (m: AuthMode) => { setMode(m); setError(""); };
 
-  const registerEnabled = siteConfig?.register_enabled ?? false;
+  const registerEnabled = siteConfig?.is_register_enabled ?? false;
   const showAgreement = !!(siteConfig?.tos_url || siteConfig?.privacy_url);
 
   // --- Special states (full-screen centered cards) ---

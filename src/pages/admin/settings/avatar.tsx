@@ -6,11 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { adminSettings } from "@/api";
-import { useSettings } from "@/hooks/use-settings";
+import { useAdminSettings } from "@/hooks/use-admin-settings";
 
 export default function AvatarSettingsPage() {
   const { t } = useTranslation();
-  const { data, loading, saving, save, update } = useSettings(
+  const { data, loading, saving, save, update } = useAdminSettings(
+    "avatar",
     adminSettings.avatar,
     t("adminSettings.saveSuccess"),
   );
@@ -44,18 +45,8 @@ export default function AvatarSettingsPage() {
               <Input type="number" value={data.avatar_size} onChange={(e) => update("avatar_size", Number(e.target.value))} />
             </div>
             <div className="grid gap-2">
-              <Label>{t("adminSettings.avatar.avatarSizeL")}</Label>
-              <Input type="number" value={data.avatar_size_l} onChange={(e) => update("avatar_size_l", Number(e.target.value))} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label>{t("adminSettings.avatar.avatarSizeM")}</Label>
-              <Input type="number" value={data.avatar_size_m} onChange={(e) => update("avatar_size_m", Number(e.target.value))} />
-            </div>
-            <div className="grid gap-2">
-              <Label>{t("adminSettings.avatar.avatarSizeS")}</Label>
-              <Input type="number" value={data.avatar_size_s} onChange={(e) => update("avatar_size_s", Number(e.target.value))} />
+              <Label>{t("adminSettings.avatar.avatarQuality")}</Label>
+              <Input type="number" min={1} max={100} value={data.avatar_quality} onChange={(e) => update("avatar_quality", Number(e.target.value))} />
             </div>
           </div>
         </CardContent>

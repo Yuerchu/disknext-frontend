@@ -1,11 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useOutletContext } from "react-router";
-import { toast } from "sonner";
-import { useTranslation } from "react-i18next";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { file } from "@/api";
-import { ApiError } from "@/api";
-import type { DirectoryResponse } from "@/api";
+import { queryKeys } from "@/lib/query-keys";
 import { FileToolbar, type ViewMode } from "@/components/file-browser/file-toolbar";
 import { FileBrowser } from "@/components/file-browser/file-browser";
 import type { UserLayoutContext } from "@/components/layout/user-layout";
@@ -28,39 +26,24 @@ function useLocalStorage<T>(key: string, defaultValue: T): [T, (v: T) => void] {
 }
 
 export default function HomePage() {
-  const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const params = useParams();
   const path = params["*"] || "";
   const { headerSlot } = useOutletContext<UserLayoutContext>();
 
-  const [directory, setDirectory] = useState<DirectoryResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: directory = null, isLoading: loading } = useQuery({
+    queryKey: queryKeys.directory(path),
+    queryFn: () => path
+      ? file.getDirectoryByPath(path)
+      : file.getRootDirectory(),
+  });
+
   const [viewMode, setViewMode] = useLocalStorage<ViewMode>("disknext-view-mode", "list");
   const [showThumb, setShowThumb] = useLocalStorage("disknext-show-thumb", true);
 
-  const loadDirectory = useCallback(async (dirPath: string) => {
-    setLoading(true);
-    try {
-      const data = dirPath
-        ? await file.getDirectoryByPath(dirPath)
-        : await file.getRootDirectory();
-      setDirectory(data);
-    } catch (e) {
-      const msg = e instanceof ApiError ? e.message : t("file.loadFailed");
-      toast.error(msg);
-      setDirectory(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
-
-  useEffect(() => {
-    loadDirectory(path);
-  }, [path, loadDirectory]);
-
   const handleRefresh = useCallback(() => {
-    loadDirectory(path);
-  }, [path, loadDirectory]);
+    queryClient.invalidateQueries({ queryKey: queryKeys.directory(path) });
+  }, [queryClient, path]);
 
   return (
     <>

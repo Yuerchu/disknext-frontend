@@ -17,7 +17,12 @@
     "move": "移動",
     "rename": "重新命名",
     "download": "下載",
-    "upload": "上傳"
+    "upload": "上傳",
+    "reset": "重設",
+    "previousPage": "上一頁",
+    "nextPage": "下一頁",
+    "pageInfo": "第 {{current}} 頁，共 {{total}} 頁",
+    "searchGroup": "搜尋群組..."
   },
   "nav": {
     "myFiles": "我的檔案",
@@ -367,7 +372,10 @@
     "scopes": "個人權限",
     "scopesPlaceholder": "逗號分隔的權限字串",
     "groupExpires": "群組過期時間",
+    "groupExpiresNever": "永不到期",
+    "time": "時間",
     "createdAt": "建立時間",
+    "registeredAt": "註冊日期",
     "updatedAt": "更新時間",
     "actions": "操作",
     "noUsers": "暫無使用者",
@@ -486,7 +494,8 @@
       "sizeM": "中尺寸 (px)",
       "avatarSizeM": "中尺寸 (px)",
       "sizeS": "小尺寸 (px)",
-      "avatarSizeS": "小尺寸 (px)"
+      "avatarSizeS": "小尺寸 (px)",
+      "avatarQuality": "WebP 輸出品質 (1-100)"
     },
     "pwa": {
       "icons": "PWA 圖示",
@@ -648,7 +657,23 @@
       "noPasskeysHint": "新增通行金鑰以實現免密碼登入",
       "webauthnNotSupported": "你的瀏覽器不支援 WebAuthn",
       "passkeyRegistrationFailed": "通行金鑰註冊失敗",
-      "actions": "操作"
+      "actions": "操作",
+      "changeEmail": "修改郵箱",
+      "changeEmailDesc": "修改您的登入郵箱地址",
+      "currentEmail": "當前郵箱",
+      "newEmail": "新郵箱",
+      "emailChanged": "郵箱修改成功",
+      "changePhone": "修改手機號",
+      "changePhoneDesc": "修改您的手機號碼",
+      "currentPhone": "當前手機號",
+      "newPhone": "新手機號",
+      "noPhone": "未綁定",
+      "phoneChanged": "手機號修改成功",
+      "sendCode": "發送驗證碼",
+      "codeSent": "驗證碼已發送",
+      "resendIn": "{{seconds}}秒後重發",
+      "codePlaceholder": "請輸入 6 位驗證碼",
+      "submit": "提交"
     },
     "viewers": {
       "title": "預設檔案檢視器",
@@ -664,5 +689,23 @@
       "noViewersHint": "當你為某種檔案類型選擇「一律使用此方式開啟」時，設定會顯示在這裡",
       "actions": "操作"
     }
+  },
+  "sudo": {
+    "title": "身份驗證",
+    "description": "請驗證您的身份以繼續操作",
+    "methodLabel": "驗證方式",
+    "methods": {
+      "password": "密碼",
+      "email_code": "郵箱驗證碼",
+      "sms_code": "簡訊驗證碼",
+      "totp": "動態口令"
+    },
+    "passwordPlaceholder": "請輸入密碼",
+    "codePlaceholder": "請輸入 6 位驗證碼",
+    "sendCode": "發送驗證碼",
+    "codeSent": "驗證碼已發送",
+    "resendIn": "{{seconds}}秒後重發",
+    "verify": "驗證",
+    "verifying": "驗證中..."
   }
 }

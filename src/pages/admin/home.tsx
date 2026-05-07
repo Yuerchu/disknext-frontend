@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,27 +13,15 @@ import {
 } from "@/components/ui/chart";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { FileIcon, Users, Share2, Database } from "lucide-react";
-import { admin, resolveErrorMessage } from "@/api";
-import type { AdminSummaryResponse } from "@/api";
+import { admin } from "@/api";
+import { queryKeys } from "@/lib/query-keys";
 
 export default function AdminHomePage() {
   const { t } = useTranslation();
-  const [data, setData] = useState<AdminSummaryResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await admin.summary();
-        setData(res);
-      } catch (e) {
-        toast.error(resolveErrorMessage(e));
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+  const { data, isLoading: loading } = useQuery({
+    queryKey: queryKeys.adminSummary(),
+    queryFn: admin.summary,
+  });
 
   const chartConfig: ChartConfig = {
     files: { label: t("adminHome.files"), color: "oklch(0.6 0.18 250)" },

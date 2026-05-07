@@ -17,7 +17,12 @@
     "move": "Move",
     "rename": "Rename",
     "download": "Download",
-    "upload": "Upload"
+    "upload": "Upload",
+    "reset": "Reset",
+    "previousPage": "Previous",
+    "nextPage": "Next",
+    "pageInfo": "Page {{current}} of {{total}}",
+    "searchGroup": "Search groups..."
   },
   "nav": {
     "myFiles": "My Files",
@@ -367,7 +372,10 @@
     "scopes": "Personal Permissions",
     "scopesPlaceholder": "Comma-separated permissions",
     "groupExpires": "Group Expiration",
+    "groupExpiresNever": "Never",
+    "time": "Time",
     "createdAt": "Created",
+    "registeredAt": "Registered",
     "updatedAt": "Updated",
     "actions": "Actions",
     "noUsers": "No users found",
@@ -486,7 +494,8 @@
       "sizeM": "Medium Size (px)",
       "avatarSizeM": "Medium Size (px)",
       "sizeS": "Small Size (px)",
-      "avatarSizeS": "Small Size (px)"
+      "avatarSizeS": "Small Size (px)",
+      "avatarQuality": "WebP Output Quality (1-100)"
     },
     "pwa": {
       "icons": "PWA Icons",
@@ -648,7 +657,23 @@
       "noPasskeysHint": "Add a passkey for passwordless sign-in",
       "webauthnNotSupported": "Your browser does not support WebAuthn",
       "passkeyRegistrationFailed": "Passkey registration failed",
-      "actions": "Actions"
+      "actions": "Actions",
+      "changeEmail": "Change Email",
+      "changeEmailDesc": "Change your login email address",
+      "currentEmail": "Current Email",
+      "newEmail": "New Email",
+      "emailChanged": "Email changed successfully",
+      "changePhone": "Change Phone",
+      "changePhoneDesc": "Change your phone number",
+      "currentPhone": "Current Phone",
+      "newPhone": "New Phone",
+      "noPhone": "Not set",
+      "phoneChanged": "Phone changed successfully",
+      "sendCode": "Send Code",
+      "codeSent": "Code sent",
+      "resendIn": "Resend in {{seconds}}s",
+      "codePlaceholder": "Enter 6-digit code",
+      "submit": "Submit"
     },
     "viewers": {
       "title": "Default File Viewers",
@@ -664,5 +689,23 @@
       "noViewersHint": "When you choose \"Always open with\" for a file type, it will appear here",
       "actions": "Actions"
     }
+  },
+  "sudo": {
+    "title": "Identity Verification",
+    "description": "Please verify your identity to continue",
+    "methodLabel": "Verification Method",
+    "methods": {
+      "password": "Password",
+      "email_code": "Email Code",
+      "sms_code": "SMS Code",
+      "totp": "Authenticator Code"
+    },
+    "passwordPlaceholder": "Enter your password",
+    "codePlaceholder": "Enter 6-digit code",
+    "sendCode": "Send Code",
+    "codeSent": "Code sent",
+    "resendIn": "Resend in {{seconds}}s",
+    "verify": "Verify",
+    "verifying": "Verifying..."
   }
 }

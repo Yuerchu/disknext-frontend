@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import {
   ChevronsUpDown, LogOut, Settings, Moon, Sun, Monitor, Languages,
 } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup,
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
@@ -17,6 +17,8 @@ import { useAuthStore } from "@/stores/auth";
 import { useUserStore } from "@/stores/user";
 import { useTheme } from "@/hooks/use-theme";
 import { setLocale } from "@/i18n";
+import { useSiteConfigStore } from "@/stores/site-config";
+import { getAvatarUrl } from "@/lib/avatar";
 
 export function NavUser() {
   const { t, i18n } = useTranslation();
@@ -34,9 +36,13 @@ export function NavUser() {
     navigate("/session", { replace: true });
   };
 
+  const siteConfig = useSiteConfigStore((s) => s.config);
   const nickname = profile?.nickname ?? "...";
   const email = profile?.email ?? "";
   const initials = nickname.slice(0, 2).toUpperCase();
+  const avatarUrl = profile && siteConfig
+    ? getAvatarUrl(profile, siteConfig.gravatar_server)
+    : null;
 
   return (
     <SidebarMenu>
@@ -46,6 +52,7 @@ export function NavUser() {
             render={<SidebarMenuButton size="lg" className="aria-expanded:bg-muted" />}
           >
             <Avatar className="size-8 rounded-lg">
+              {avatarUrl && <AvatarImage src={avatarUrl} alt={nickname} />}
               <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
             </Avatar>
             <div className="grid flex-1 text-left text-sm leading-tight">

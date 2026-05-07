@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -14,8 +15,9 @@ import {
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Copy, Trash2, Link2, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
-import { share, resolveErrorMessage, ApiError } from "@/api";
+import { share } from "@/api";
 import type { ShareResponse } from "@/api";
+import { queryKeys } from "@/lib/query-keys";
 
 const PAGE_SIZE = 20;
 
@@ -30,38 +32,33 @@ function formatDate(iso: string): string {
 
 export default function SharesPage() {
   const { t } = useTranslation();
-  const [items, setItems] = useState<ShareResponse[]>([]);
-  const [total, setTotal] = useState(0);
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterTab>("all");
 
   // Delete dialog
   const [deleteTarget, setDeleteTarget] = useState<ShareResponse | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
-  const loadShares = useCallback(async () => {
-    setLoading(true);
-    try {
-      const expired = filter === "all" ? undefined : filter === "expired";
-      const data = await share.list({
-        offset: page * PAGE_SIZE,
-        limit: PAGE_SIZE,
-        expired,
-      });
-      setItems(data.items);
-      setTotal(data.count);
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.message : t("common.loading");
-      toast.error(msg);
-    } finally {
-      setLoading(false);
-    }
-  }, [page, filter, t]);
+  const expired = filter === "all" ? undefined : filter === "expired";
+  const queryParams = { offset: page * PAGE_SIZE, limit: PAGE_SIZE, expired };
 
-  useEffect(() => {
-    loadShares();
-  }, [loadShares]);
+  const { data, isLoading: loading } = useQuery({
+    queryKey: queryKeys.shares(queryParams as Record<string, unknown>),
+    queryFn: () => share.list(queryParams),
+    placeholderData: keepPreviousData,
+  });
+
+  const items = data?.items ?? [];
+  const total = data?.count ?? 0;
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => share.delete(id),
+    onSuccess: () => {
+      toast.success(t("share.deleteSuccess"));
+      setDeleteTarget(null);
+      queryClient.invalidateQueries({ queryKey: ["shares"] });
+    },
+  });
 
   const handleFilterChange = (value: string) => {
     setFilter(value as FilterTab);
@@ -75,19 +72,9 @@ export default function SharesPage() {
     });
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      await share.delete(deleteTarget.id);
-      toast.success(t("share.deleteSuccess"));
-      setDeleteTarget(null);
-      loadShares();
-    } catch (err) {
-      toast.error(resolveErrorMessage(err));
-    } finally {
-      setDeleting(false);
-    }
+    deleteMutation.mutate(deleteTarget.id);
   };
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -204,11 +191,11 @@ export default function SharesPage() {
             <DialogDescription>{t("share.deleteConfirm")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>
               {t("common.cancel")}
             </Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-              {deleting && <Loader2 className="mr-2 size-4 animate-spin" />}
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteMutation.isPending}>
+              {deleteMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
               {t("common.delete")}
             </Button>
           </DialogFooter>

@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { adminScope } from "@/api";
-import type { ScopeMetadataResponse, ScopeResource } from "@/api";
+import type { ScopeResource } from "@/api";
+import { queryKeys } from "@/lib/query-keys";
 
 interface ScopePickerProps {
   value: string[];
@@ -13,20 +15,25 @@ interface ScopePickerProps {
 
 export function ScopePicker({ value, onChange }: ScopePickerProps) {
   const { t } = useTranslation();
-  const [metadata, setMetadata] = useState<ScopeMetadataResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: metadata, isLoading: loading } = useQuery({
+    queryKey: queryKeys.adminScopeMetadata(),
+    queryFn: adminScope.metadata,
+    staleTime: Infinity,
+  });
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    adminScope.metadata().then((data) => {
-      setMetadata(data);
-      const parentResources = new Set<string>();
-      for (const r of data.resources) {
-        if (r.parent) parentResources.add(r.parent);
-      }
-      setCollapsed(parentResources);
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+  // Initialize collapsed state from metadata
+  const initialCollapsed = useMemo(() => {
+    if (!metadata) return new Set<string>();
+    const parents = new Set<string>();
+    for (const r of metadata.resources) {
+      if (r.parent) parents.add(r.parent);
+    }
+    return parents;
+  }, [metadata]);
+
+  // Use initialCollapsed only if collapsed hasn't been manually toggled
+  const effectiveCollapsed = collapsed.size === 0 && initialCollapsed.size > 0 ? initialCollapsed : collapsed;
 
   if (loading || !metadata) {
     return (
@@ -105,7 +112,7 @@ export function ScopePicker({ value, onChange }: ScopePickerProps) {
   const renderRow = (resource: ScopeResource, indent: boolean = false) => {
     const wc = isWildcard(resource);
     const isParent = hasChildren(resource.resource);
-    const isCollapsed = collapsed.has(resource.resource);
+    const isCollapsed = effectiveCollapsed.has(resource.resource);
 
     return (
       <tr key={resource.resource} className="border-b border-border/50 last:border-b-0">
@@ -161,7 +168,7 @@ export function ScopePicker({ value, onChange }: ScopePickerProps) {
   const renderResourceRows = (resource: ScopeResource, indent: boolean = false): React.ReactNode[] => {
     const rows: React.ReactNode[] = [renderRow(resource, indent)];
     const isParent = hasChildren(resource.resource);
-    if (isParent && !collapsed.has(resource.resource)) {
+    if (isParent && !effectiveCollapsed.has(resource.resource)) {
       for (const child of childrenOf(resource.resource)) {
         rows.push(...renderResourceRows(child, true));
       }

@@ -13,7 +13,7 @@ describe("useSiteConfigStore", () => {
     const state = useSiteConfigStore.getState();
 
     expect(state.config).not.toBeNull();
-    expect(state.config!.title).toBe(mockSiteConfigResponse.title);
+    expect(state.config!.site_name).toBe(mockSiteConfigResponse.site_name);
     expect(state.lastError).toBeNull();
   });
 

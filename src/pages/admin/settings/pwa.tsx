@@ -8,11 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { adminSettings } from "@/api";
 import type { PwaDisplayMode } from "@/api";
-import { useSettings } from "@/hooks/use-settings";
+import { useAdminSettings } from "@/hooks/use-admin-settings";
 
 export default function PwaSettingsPage() {
   const { t } = useTranslation();
-  const { data, loading, saving, save, update } = useSettings(
+  const { data, loading, saving, save, update } = useAdminSettings(
+    "pwa",
     adminSettings.pwa,
     t("adminSettings.saveSuccess"),
   );

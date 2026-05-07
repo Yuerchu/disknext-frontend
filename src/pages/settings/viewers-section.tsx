@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/query-keys";
 import { Loader2, Trash2, Eye } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,44 +18,34 @@ import {
 import {
   Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription,
 } from "@/components/ui/empty";
-import { userSettings, resolveErrorMessage } from "@/api";
+import { userSettings } from "@/api";
 import type { UserFileAppDefaultResponse } from "@/api";
 
 export default function ViewersSection() {
   const { t } = useTranslation();
-  const [viewers, setViewers] = useState<UserFileAppDefaultResponse[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<UserFileAppDefaultResponse | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
-  const loadViewers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await userSettings.listDefaultViewers();
-      setViewers(data);
-    } catch (err) {
-      toast.error(resolveErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const viewersQuery = useQuery({
+    queryKey: queryKeys.userDefaultViewers(),
+    queryFn: () => userSettings.listDefaultViewers(),
+  });
 
-  useEffect(() => { loadViewers(); }, [loadViewers]);
+  const viewers = viewersQuery.data ?? [];
 
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      await userSettings.deleteDefaultViewer(deleteTarget.id);
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => userSettings.deleteDefaultViewer(id),
+    onSuccess: () => {
       toast.success(t("userSettings.viewers.deleted"));
       setDeleteDialogOpen(false);
-      loadViewers();
-    } catch (err) {
-      toast.error(resolveErrorMessage(err));
-    } finally {
-      setDeleting(false);
-    }
+      queryClient.invalidateQueries({ queryKey: queryKeys.userDefaultViewers() });
+    },
+  });
+
+  const handleDelete = () => {
+    if (!deleteTarget) return;
+    deleteMutation.mutate(deleteTarget.id);
   };
 
   return (
@@ -64,7 +56,7 @@ export default function ViewersSection() {
           <CardDescription>{t("userSettings.viewers.desc")}</CardDescription>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {viewersQuery.isLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 3 }).map((_, i) => (
                 <Skeleton key={i} className="h-12 w-full" />
@@ -129,8 +121,8 @@ export default function ViewersSection() {
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>{t("common.cancel")}</Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-              {deleting && <Loader2 className="mr-2 size-4 animate-spin" />}
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteMutation.isPending}>
+              {deleteMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
               {t("common.delete")}
             </Button>
           </DialogFooter>

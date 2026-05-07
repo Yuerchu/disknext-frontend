@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/query-keys";
 import { Loader2, Plus, Pencil, Trash2, KeyRound, ShieldCheck, ShieldOff } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +22,9 @@ import {
   Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription,
 } from "@/components/ui/empty";
 import { userSettings, resolveErrorMessage } from "@/api";
-import type { AuthnDetailResponse, UserSettingResponse } from "@/api";
+import type { AuthnDetailResponse } from "@/api";
+import { SudoDialog } from "@/components/sudo-dialog";
+import { VerificationCodeInput } from "@/components/verification-code-input";
 
 function extractSecretFromUri(uri: string): string {
   try {
@@ -83,31 +87,15 @@ function serializeCredential(credential: PublicKeyCredential): string {
   });
 }
 
-interface SecuritySectionProps {
-  settingsData?: UserSettingResponse | null;
-}
+export default function SecuritySection() {
+  const queryClient = useQueryClient();
 
-export default function SecuritySection({ settingsData }: SecuritySectionProps) {
-  // Load settings data if not provided
-  const [localSettings, setLocalSettings] = useState<UserSettingResponse | null>(settingsData ?? null);
-  const [settingsLoading, setSettingsLoading] = useState(!settingsData);
+  const settingsQuery = useQuery({
+    queryKey: queryKeys.userSettings(),
+    queryFn: () => userSettings.get(),
+  });
 
-  useEffect(() => {
-    if (settingsData) {
-      setLocalSettings(settingsData);
-      return;
-    }
-    setSettingsLoading(true);
-    userSettings.get().then((data) => {
-      setLocalSettings(data);
-    }).catch((err) => {
-      toast.error(resolveErrorMessage(err));
-    }).finally(() => {
-      setSettingsLoading(false);
-    });
-  }, [settingsData]);
-
-  if (settingsLoading || !localSettings) {
+  if (settingsQuery.isLoading || !settingsQuery.data) {
     return (
       <div className="flex flex-col gap-6">
         {Array.from({ length: 3 }).map((_, i) => (
@@ -119,15 +107,297 @@ export default function SecuritySection({ settingsData }: SecuritySectionProps) 
 
   return (
     <div className="flex flex-col gap-6">
+      <ChangeEmailCard
+        currentEmail={settingsQuery.data.email}
+        onChanged={() => {
+          queryClient.invalidateQueries({ queryKey: queryKeys.userSettings() });
+        }}
+      />
+      <ChangePhoneCard
+        currentPhone={settingsQuery.data.phone}
+        onChanged={() => {
+          queryClient.invalidateQueries({ queryKey: queryKeys.userSettings() });
+        }}
+      />
       <ChangePasswordCard />
       <TwoFactorCard
-        enabled={localSettings.two_factor}
+        enabled={settingsQuery.data.two_factor}
         onEnabledChange={() => {
-          setLocalSettings({ ...localSettings, two_factor: true });
+          queryClient.invalidateQueries({ queryKey: queryKeys.userSettings() });
         }}
       />
       <WebAuthnCard />
     </div>
+  );
+}
+
+// ─── Change Email Card ────────────────────────────────────────────
+
+function ChangeEmailCard({ currentEmail, onChanged }: { currentEmail: string; onChanged: () => void }) {
+  const { t } = useTranslation();
+  const [editing, setEditing] = useState(false);
+  const [sudoOpen, setSudoOpen] = useState(false);
+  const [sudoToken, setSudoToken] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [cooldown, setCooldown] = useState(0);
+  const [sendingCode, setSendingCode] = useState(false);
+
+  // Cooldown timer
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
+
+  const handleStartChange = () => {
+    setSudoOpen(true);
+  };
+
+  const handleSudoSuccess = (token: string) => {
+    setSudoToken(token);
+    setEditing(true);
+    setNewEmail("");
+    setCode("");
+    setCooldown(0);
+  };
+
+  const handleSendCode = async () => {
+    if (!newEmail) return;
+    setSendingCode(true);
+    try {
+      await userSettings.sendChangeEmailCode({ new_email: newEmail }, sudoToken);
+      toast.success(t("userSettings.security.codeSent"));
+      setCooldown(60);
+    } catch (err) {
+      toast.error(resolveErrorMessage(err));
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
+  const changeEmailMutation = useMutation({
+    mutationFn: () =>
+      userSettings.changeEmail({ new_email: newEmail, new_email_code: code }, sudoToken),
+    onSuccess: () => {
+      toast.success(t("userSettings.security.emailChanged"));
+      setEditing(false);
+      setSudoToken("");
+      onChanged();
+    },
+  });
+
+  const handleCancel = () => {
+    setEditing(false);
+    setSudoToken("");
+    setNewEmail("");
+    setCode("");
+    setCooldown(0);
+  };
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("userSettings.security.changeEmail")}</CardTitle>
+          <CardDescription>{t("userSettings.security.changeEmailDesc")}</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-2">
+            <Label>{t("userSettings.security.currentEmail")}</Label>
+            <p className="text-sm text-muted-foreground">{currentEmail}</p>
+          </div>
+          {editing ? (
+            <>
+              <div className="grid gap-2">
+                <Label>{t("userSettings.security.newEmail")}</Label>
+                <Input
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  autoFocus
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSendCode}
+                  disabled={sendingCode || cooldown > 0 || !newEmail}
+                >
+                  {sendingCode && <Loader2 className="mr-2 size-4 animate-spin" />}
+                  {cooldown > 0
+                    ? t("userSettings.security.resendIn", { seconds: cooldown })
+                    : t("userSettings.security.sendCode")}
+                </Button>
+              </div>
+              <VerificationCodeInput
+                value={code}
+                onChange={setCode}
+                onComplete={() => changeEmailMutation.mutate()}
+              />
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={handleCancel}>
+                  {t("common.cancel")}
+                </Button>
+                <Button
+                  onClick={() => changeEmailMutation.mutate()}
+                  disabled={changeEmailMutation.isPending || code.length !== 6 || !newEmail}
+                >
+                  {changeEmailMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+                  {t("userSettings.security.submit")}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className="flex justify-end">
+              <Button onClick={handleStartChange}>
+                {t("userSettings.security.changeEmail")}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      <SudoDialog open={sudoOpen} onOpenChange={setSudoOpen} onSuccess={handleSudoSuccess} />
+    </>
+  );
+}
+
+// ─── Change Phone Card ────────────────────────────────────────────
+
+function ChangePhoneCard({ currentPhone, onChanged }: { currentPhone: string | null; onChanged: () => void }) {
+  const { t } = useTranslation();
+  const [editing, setEditing] = useState(false);
+  const [sudoOpen, setSudoOpen] = useState(false);
+  const [sudoToken, setSudoToken] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [code, setCode] = useState("");
+  const [cooldown, setCooldown] = useState(0);
+  const [sendingCode, setSendingCode] = useState(false);
+
+  // Cooldown timer
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
+
+  const handleStartChange = () => {
+    setSudoOpen(true);
+  };
+
+  const handleSudoSuccess = (token: string) => {
+    setSudoToken(token);
+    setEditing(true);
+    setNewPhone("");
+    setCode("");
+    setCooldown(0);
+  };
+
+  const handleSendCode = async () => {
+    if (!newPhone) return;
+    setSendingCode(true);
+    try {
+      await userSettings.sendChangePhoneCode({ new_phone: newPhone }, sudoToken);
+      toast.success(t("userSettings.security.codeSent"));
+      setCooldown(60);
+    } catch (err) {
+      toast.error(resolveErrorMessage(err));
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
+  const changePhoneMutation = useMutation({
+    mutationFn: () =>
+      userSettings.changePhone({ new_phone: newPhone, new_phone_code: code }, sudoToken),
+    onSuccess: () => {
+      toast.success(t("userSettings.security.phoneChanged"));
+      setEditing(false);
+      setSudoToken("");
+      onChanged();
+    },
+  });
+
+  const handleCancel = () => {
+    setEditing(false);
+    setSudoToken("");
+    setNewPhone("");
+    setCode("");
+    setCooldown(0);
+  };
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("userSettings.security.changePhone")}</CardTitle>
+          <CardDescription>{t("userSettings.security.changePhoneDesc")}</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-2">
+            <Label>{t("userSettings.security.currentPhone")}</Label>
+            <p className="text-sm text-muted-foreground">
+              {currentPhone || t("userSettings.security.noPhone")}
+            </p>
+          </div>
+          {editing ? (
+            <>
+              <div className="grid gap-2">
+                <Label>{t("userSettings.security.newPhone")}</Label>
+                <Input
+                  type="tel"
+                  value={newPhone}
+                  onChange={(e) => setNewPhone(e.target.value)}
+                  placeholder="+8613800138000"
+                  autoFocus
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSendCode}
+                  disabled={sendingCode || cooldown > 0 || !newPhone}
+                >
+                  {sendingCode && <Loader2 className="mr-2 size-4 animate-spin" />}
+                  {cooldown > 0
+                    ? t("userSettings.security.resendIn", { seconds: cooldown })
+                    : t("userSettings.security.sendCode")}
+                </Button>
+              </div>
+              <div className="grid gap-2">
+                <VerificationCodeInput
+                  value={code}
+                  onChange={setCode}
+                  onComplete={() => changePhoneMutation.mutate()}
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={handleCancel}>
+                  {t("common.cancel")}
+                </Button>
+                <Button
+                  onClick={() => changePhoneMutation.mutate()}
+                  disabled={changePhoneMutation.isPending || code.length !== 6 || !newPhone}
+                >
+                  {changePhoneMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+                  {t("userSettings.security.submit")}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className="flex justify-end">
+              <Button onClick={handleStartChange}>
+                {t("userSettings.security.changePhone")}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      <SudoDialog open={sudoOpen} onOpenChange={setSudoOpen} onSuccess={handleSudoSuccess} />
+    </>
   );
 }
 
@@ -138,9 +408,19 @@ function ChangePasswordCard() {
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [saving, setSaving] = useState(false);
 
-  const handleSubmit = async () => {
+  const changePwMutation = useMutation({
+    mutationFn: (data: { old_password: string; new_password: string }) =>
+      userSettings.changePassword(data),
+    onSuccess: () => {
+      toast.success(t("userSettings.security.passwordChanged"));
+      setOldPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    },
+  });
+
+  const handleSubmit = () => {
     if (newPassword.length < 8) {
       toast.error(t("userSettings.security.passwordMinLength"));
       return;
@@ -149,18 +429,7 @@ function ChangePasswordCard() {
       toast.error(t("userSettings.security.passwordMismatch"));
       return;
     }
-    setSaving(true);
-    try {
-      await userSettings.changePassword({ old_password: oldPassword, new_password: newPassword });
-      toast.success(t("userSettings.security.passwordChanged"));
-      setOldPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-    } catch (err) {
-      toast.error(resolveErrorMessage(err));
-    } finally {
-      setSaving(false);
-    }
+    changePwMutation.mutate({ old_password: oldPassword, new_password: newPassword });
   };
 
   return (
@@ -200,8 +469,8 @@ function ChangePasswordCard() {
           </div>
         </div>
         <div className="flex justify-end">
-          <Button onClick={handleSubmit} disabled={saving || !oldPassword || !newPassword}>
-            {saving && <Loader2 className="mr-2 size-4 animate-spin" />}
+          <Button onClick={handleSubmit} disabled={changePwMutation.isPending || !oldPassword || !newPassword}>
+            {changePwMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
             {t("userSettings.security.changePassword")}
           </Button>
         </div>
@@ -218,37 +487,34 @@ function TwoFactorCard({ enabled, onEnabledChange }: { enabled: boolean; onEnabl
   const [setupToken, setSetupToken] = useState("");
   const [uri, setUri] = useState("");
   const [code, setCode] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [verifying, setVerifying] = useState(false);
 
-  const handleEnable = async () => {
-    setLoading(true);
-    try {
-      const data = await userSettings.get2FASetup();
+  const setupMutation = useMutation({
+    mutationFn: () => userSettings.get2FASetup(),
+    onSuccess: (data) => {
       setSetupToken(data.setup_token);
       setUri(data.uri);
       setCode("");
       setDialogOpen(true);
-    } catch (err) {
-      toast.error(resolveErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+  });
 
-  const handleVerify = async () => {
-    if (code.length !== 6) return;
-    setVerifying(true);
-    try {
-      await userSettings.enable2FA({ setup_token: setupToken, code });
+  const verifyMutation = useMutation({
+    mutationFn: (params: { setup_token: string; code: string }) =>
+      userSettings.enable2FA(params),
+    onSuccess: () => {
       toast.success(t("userSettings.security.twoFactorSuccess"));
       setDialogOpen(false);
       onEnabledChange();
-    } catch (err) {
-      toast.error(resolveErrorMessage(err));
-    } finally {
-      setVerifying(false);
-    }
+    },
+  });
+
+  const handleEnable = () => {
+    setupMutation.mutate();
+  };
+
+  const handleVerify = () => {
+    if (code.length !== 6) return;
+    verifyMutation.mutate({ setup_token: setupToken, code });
   };
 
   return (
@@ -271,8 +537,8 @@ function TwoFactorCard({ enabled, onEnabledChange }: { enabled: boolean; onEnabl
         </CardHeader>
         {!enabled && (
           <CardContent>
-            <Button onClick={handleEnable} disabled={loading}>
-              {loading && <Loader2 className="mr-2 size-4 animate-spin" />}
+            <Button onClick={handleEnable} disabled={setupMutation.isPending}>
+              {setupMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
               {t("userSettings.security.enable2FA")}
             </Button>
           </CardContent>
@@ -299,23 +565,17 @@ function TwoFactorCard({ enabled, onEnabledChange }: { enabled: boolean; onEnabl
             </div>
             <div className="w-full grid gap-2">
               <Label>{t("userSettings.security.verificationCode")}</Label>
-              <Input
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                placeholder={t("userSettings.security.verificationCodePlaceholder")}
-                className="text-center text-2xl tracking-[0.5em] font-mono"
+              <VerificationCodeInput
                 value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                onKeyDown={(e) => { if (e.key === "Enter") handleVerify(); }}
-                autoFocus
+                onChange={setCode}
+                onComplete={handleVerify}
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>{t("common.cancel")}</Button>
-            <Button onClick={handleVerify} disabled={verifying || code.length !== 6}>
-              {verifying && <Loader2 className="mr-2 size-4 animate-spin" />}
+            <Button onClick={handleVerify} disabled={verifyMutation.isPending || code.length !== 6}>
+              {verifyMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
               {t("userSettings.security.verifyAndEnable")}
             </Button>
           </DialogFooter>
@@ -329,40 +589,29 @@ function TwoFactorCard({ enabled, onEnabledChange }: { enabled: boolean; onEnabl
 
 function WebAuthnCard() {
   const { t } = useTranslation();
-  const [credentials, setCredentials] = useState<AuthnDetailResponse[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [registering, setRegistering] = useState(false);
 
   // Rename dialog
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<AuthnDetailResponse | null>(null);
   const [renameName, setRenameName] = useState("");
-  const [renaming, setRenaming] = useState(false);
 
   // Delete dialog
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AuthnDetailResponse | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
   // Name dialog (after registration)
   const [nameDialogOpen, setNameDialogOpen] = useState(false);
   const [newCredentialJson, setNewCredentialJson] = useState("");
   const [newPasskeyName, setNewPasskeyName] = useState("");
-  const [nameSaving, setNameSaving] = useState(false);
 
-  const loadCredentials = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await userSettings.listAuthns();
-      setCredentials(data);
-    } catch (err) {
-      toast.error(resolveErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const credentialsQuery = useQuery({
+    queryKey: queryKeys.userAuthns(),
+    queryFn: () => userSettings.listAuthns(),
+  });
 
-  useEffect(() => { loadCredentials(); }, [loadCredentials]);
+  const credentials = credentialsQuery.data ?? [];
 
   const handleRegister = async () => {
     if (!window.PublicKeyCredential) {
@@ -391,51 +640,50 @@ function WebAuthnCard() {
     }
   };
 
-  const handleFinishRegistration = async () => {
-    setNameSaving(true);
-    try {
-      await userSettings.finishPasskeyRegistration({
-        credential: newCredentialJson,
-        name: newPasskeyName.trim() || null,
-      });
+  const finishRegistrationMutation = useMutation({
+    mutationFn: (data: { credential: string; name: string | null }) =>
+      userSettings.finishPasskeyRegistration(data),
+    onSuccess: () => {
       toast.success(t("userSettings.security.passkeyAdded"));
       setNameDialogOpen(false);
-      loadCredentials();
-    } catch (err) {
-      toast.error(resolveErrorMessage(err));
-    } finally {
-      setNameSaving(false);
-    }
+      queryClient.invalidateQueries({ queryKey: queryKeys.userAuthns() });
+    },
+  });
+
+  const handleFinishRegistration = () => {
+    finishRegistrationMutation.mutate({
+      credential: newCredentialJson,
+      name: newPasskeyName.trim() || null,
+    });
   };
 
-  const handleRename = async () => {
-    if (!renameTarget || !renameName.trim()) return;
-    setRenaming(true);
-    try {
-      await userSettings.renameAuthn(renameTarget.id, { name: renameName.trim() });
+  const renameMutation = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      userSettings.renameAuthn(id, { name }),
+    onSuccess: () => {
       toast.success(t("userSettings.security.passkeyRenamed"));
       setRenameDialogOpen(false);
-      loadCredentials();
-    } catch (err) {
-      toast.error(resolveErrorMessage(err));
-    } finally {
-      setRenaming(false);
-    }
+      queryClient.invalidateQueries({ queryKey: queryKeys.userAuthns() });
+    },
+  });
+
+  const handleRename = () => {
+    if (!renameTarget || !renameName.trim()) return;
+    renameMutation.mutate({ id: renameTarget.id, name: renameName.trim() });
   };
 
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      await userSettings.deleteAuthn(deleteTarget.id);
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => userSettings.deleteAuthn(id),
+    onSuccess: () => {
       toast.success(t("userSettings.security.passkeyDeleted"));
       setDeleteDialogOpen(false);
-      loadCredentials();
-    } catch (err) {
-      toast.error(resolveErrorMessage(err));
-    } finally {
-      setDeleting(false);
-    }
+      queryClient.invalidateQueries({ queryKey: queryKeys.userAuthns() });
+    },
+  });
+
+  const handleDelete = () => {
+    if (!deleteTarget) return;
+    deleteMutation.mutate(deleteTarget.id);
   };
 
   const formatDate = (dateStr: string) => {
@@ -466,7 +714,7 @@ function WebAuthnCard() {
           </div>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {credentialsQuery.isLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 2 }).map((_, i) => (
                 <Skeleton key={i} className="h-12 w-full" />
@@ -561,8 +809,8 @@ function WebAuthnCard() {
             <Button variant="outline" onClick={() => { setNameDialogOpen(false); handleFinishRegistration(); }}>
               {t("common.cancel")}
             </Button>
-            <Button onClick={handleFinishRegistration} disabled={nameSaving}>
-              {nameSaving && <Loader2 className="mr-2 size-4 animate-spin" />}
+            <Button onClick={handleFinishRegistration} disabled={finishRegistrationMutation.isPending}>
+              {finishRegistrationMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
               {t("common.confirm")}
             </Button>
           </DialogFooter>
@@ -586,8 +834,8 @@ function WebAuthnCard() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRenameDialogOpen(false)}>{t("common.cancel")}</Button>
-            <Button onClick={handleRename} disabled={renaming || !renameName.trim()}>
-              {renaming && <Loader2 className="mr-2 size-4 animate-spin" />}
+            <Button onClick={handleRename} disabled={renameMutation.isPending || !renameName.trim()}>
+              {renameMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
               {t("common.confirm")}
             </Button>
           </DialogFooter>
@@ -603,8 +851,8 @@ function WebAuthnCard() {
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>{t("common.cancel")}</Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-              {deleting && <Loader2 className="mr-2 size-4 animate-spin" />}
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteMutation.isPending}>
+              {deleteMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
               {t("common.delete")}
             </Button>
           </DialogFooter>

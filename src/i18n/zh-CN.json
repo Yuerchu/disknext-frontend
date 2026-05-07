@@ -17,7 +17,12 @@
     "move": "移动",
     "rename": "重命名",
     "download": "下载",
-    "upload": "上传"
+    "upload": "上传",
+    "reset": "重置",
+    "previousPage": "上一页",
+    "nextPage": "下一页",
+    "pageInfo": "第 {{current}} 页，共 {{total}} 页",
+    "searchGroup": "搜索用户组..."
   },
   "nav": {
     "myFiles": "我的文件",
@@ -380,7 +385,10 @@
     "scopes": "个人权限",
     "scopesPlaceholder": "逗号分隔的权限字符串",
     "groupExpires": "用户组过期时间",
+    "groupExpiresNever": "永不过期",
+    "time": "时间",
     "createdAt": "创建时间",
+    "registeredAt": "注册日期",
     "updatedAt": "更新时间",
     "actions": "操作",
     "noUsers": "暂无用户",
@@ -499,7 +507,8 @@
       "sizeM": "中尺寸 (px)",
       "avatarSizeM": "中尺寸 (px)",
       "sizeS": "小尺寸 (px)",
-      "avatarSizeS": "小尺寸 (px)"
+      "avatarSizeS": "小尺寸 (px)",
+      "avatarQuality": "WebP 输出质量 (1-100)"
     },
     "pwa": {
       "icons": "PWA 图标",
@@ -661,7 +670,23 @@
       "noPasskeysHint": "添加通行密钥以实现免密登录",
       "webauthnNotSupported": "你的浏览器不支持 WebAuthn",
       "passkeyRegistrationFailed": "通行密钥注册失败",
-      "actions": "操作"
+      "actions": "操作",
+      "changeEmail": "修改邮箱",
+      "changeEmailDesc": "修改您的登录邮箱地址",
+      "currentEmail": "当前邮箱",
+      "newEmail": "新邮箱",
+      "emailChanged": "邮箱修改成功",
+      "changePhone": "修改手机号",
+      "changePhoneDesc": "修改您的手机号码",
+      "currentPhone": "当前手机号",
+      "newPhone": "新手机号",
+      "noPhone": "未绑定",
+      "phoneChanged": "手机号修改成功",
+      "sendCode": "发送验证码",
+      "codeSent": "验证码已发送",
+      "resendIn": "{{seconds}}秒后重发",
+      "codePlaceholder": "请输入 6 位验证码",
+      "submit": "提交"
     },
     "viewers": {
       "title": "默认文件查看器",
@@ -677,5 +702,23 @@
       "noViewersHint": "当你为某种文件类型选择「始终使用此方式打开」时，设置会显示在这里",
       "actions": "操作"
     }
+  },
+  "sudo": {
+    "title": "身份验证",
+    "description": "请验证您的身份以继续操作",
+    "methodLabel": "验证方式",
+    "methods": {
+      "password": "密码",
+      "email_code": "邮箱验证码",
+      "sms_code": "短信验证码",
+      "totp": "动态口令"
+    },
+    "passwordPlaceholder": "请输入密码",
+    "codePlaceholder": "请输入 6 位验证码",
+    "sendCode": "发送验证码",
+    "codeSent": "验证码已发送",
+    "resendIn": "{{seconds}}秒后重发",
+    "verify": "验证",
+    "verifying": "验证中..."
   }
 }

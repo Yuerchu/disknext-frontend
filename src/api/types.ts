@@ -88,21 +88,65 @@ export interface AuthMethodConfig {
 }
 
 export interface SiteConfigResponse {
-  title: string;
-  site_notice: string | null;
+  site_name: string;
+  site_notice_public: string | null;
   logo_light: string | null;
   logo_dark: string | null;
-  register_enabled: boolean;
-  login_captcha: boolean;
-  reg_captcha: boolean;
-  forget_captcha: boolean;
-  captcha_type: string;
-  captcha_key: string | null;
+  is_register_enabled: boolean;
+  is_login_captcha: boolean;
+  is_reg_captcha: boolean;
+  is_forget_captcha: boolean;
+  captcha_type: CaptchaType;
+  captcha_recaptcha_key: string | null;
+  captcha_cloudflare_key: string | null;
   auth_methods: AuthMethodConfig[];
-  password_required: boolean;
+  is_auth_password_required: boolean;
+  is_auth_phone_binding_required: boolean;
+  is_auth_email_binding_required: boolean;
+  avatar_size: number;
+  gravatar_server: string;
   footer_code: string | null;
   tos_url: string | null;
   privacy_url: string | null;
+}
+
+// --- Sudo 身份验证 ---
+
+export type SudoMethod = "password" | "email_code" | "sms_code" | "totp";
+
+export interface SudoCodeRequest {
+  method: "email_code" | "sms_code";
+}
+
+export interface SudoRequest {
+  method: SudoMethod;
+  password?: string | null;
+  code?: string | null;
+}
+
+export interface SudoResponse {
+  sudo_token: string;
+  expires_in: number;
+}
+
+// --- 修改邮箱/手机号 ---
+
+export interface ChangeEmailCodeRequest {
+  new_email: string;
+}
+
+export interface ChangeEmailRequest {
+  new_email: string;
+  new_email_code?: string | null;
+}
+
+export interface ChangePhoneCodeRequest {
+  new_phone: string;
+}
+
+export interface ChangePhoneRequest {
+  new_phone: string;
+  new_phone_code?: string | null;
 }
 
 // --- 文件/目录 ---
@@ -351,9 +395,7 @@ export type MailSettingsUpdate = Partial<MailSettingsResponse>;
 export interface AvatarSettingsResponse {
   gravatar_server: string;
   avatar_size: number;
-  avatar_size_l: number;
-  avatar_size_m: number;
-  avatar_size_s: number;
+  avatar_quality: number;
 }
 
 export type AvatarSettingsUpdate = Partial<AvatarSettingsResponse>;

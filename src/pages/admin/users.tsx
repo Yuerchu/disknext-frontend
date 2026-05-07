@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -10,16 +11,23 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, UserIcon } from "lucide-react";
-import { adminUser, adminGroup, resolveErrorMessage } from "@/api";
-import type { AdminUserResponse, AdminUserCreateRequest, AdminGroupResponse, UserStatus } from "@/api";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import {
+  Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious,
+} from "@/components/ui/pagination";
+import { Plus, Pencil, Trash2, Loader2, UserIcon, Search, RotateCcw, ChevronsUpDown } from "lucide-react";
+import { adminUser, adminGroup } from "@/api";
+import type { AdminUserCreateRequest, UserStatus } from "@/api";
+import { queryKeys } from "@/lib/query-keys";
+import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 20;
 
@@ -46,19 +54,24 @@ const STATUS_VARIANTS: Record<string, "default" | "secondary" | "destructive" | 
 export default function AdminUsersPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  const [users, setUsers] = useState<AdminUserResponse[]>([]);
-  const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [groups, setGroups] = useState<AdminGroupResponse[]>([]);
 
-  // Filters
+  // Draft filter values (not yet applied)
+  const [draftEmail, setDraftEmail] = useState("");
+  const [draftNickname, setDraftNickname] = useState("");
+  const [draftGroup, setDraftGroup] = useState("");
+  const [draftStatus, setDraftStatus] = useState("");
+
+  // Applied filter values (used for querying)
   const [emailFilter, setEmailFilter] = useState("");
   const [nicknameFilter, setNicknameFilter] = useState("");
   const [groupFilter, setGroupFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Group combobox open state
+  const [groupOpen, setGroupOpen] = useState(false);
 
   // Selection
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -69,67 +82,54 @@ export default function AdminUsersPage() {
   const [formPassword, setFormPassword] = useState("");
   const [formNickname, setFormNickname] = useState("");
   const [formGroupId, setFormGroupId] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [formGroupOpen, setFormGroupOpen] = useState(false);
 
   // Delete dialog
   const [deleteIds, setDeleteIds] = useState<string[]>([]);
-  const [deleting, setDeleting] = useState(false);
 
-  const loadUsers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await adminUser.list({
-        offset: page * PAGE_SIZE,
-        limit: PAGE_SIZE,
-        email_contains: emailFilter || undefined,
-        nickname_contains: nicknameFilter || undefined,
-        group_id: groupFilter || undefined,
-        status: (statusFilter as UserStatus) || undefined,
-      });
-      setUsers(data.items);
-      setTotal(data.count);
-    } catch (err) {
-      toast.error(resolveErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [page, emailFilter, nicknameFilter, groupFilter, statusFilter]);
-
-  useEffect(() => {
-    loadUsers();
-  }, [loadUsers]);
-
-  // Load groups for filter & create dialog
-  useEffect(() => {
-    adminGroup.list({ limit: 200 }).then((data) => {
-      setGroups(data.items);
-    }).catch(() => {});
-  }, []);
-
-  // Debounced filter change
-  const handleEmailChange = (v: string) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setEmailFilter(v);
-      setPage(0);
-    }, 300);
+  const userQueryParams = {
+    offset: page * PAGE_SIZE,
+    limit: PAGE_SIZE,
+    email_contains: emailFilter || undefined,
+    nickname_contains: nicknameFilter || undefined,
+    group_id: groupFilter || undefined,
+    status: (statusFilter as UserStatus) || undefined,
   };
 
-  const handleNicknameChange = (v: string) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setNicknameFilter(v);
-      setPage(0);
-    }, 300);
-  };
+  const { data: usersData, isLoading: loading } = useQuery({
+    queryKey: queryKeys.adminUsers(userQueryParams as Record<string, unknown>),
+    queryFn: () => adminUser.list(userQueryParams),
+    placeholderData: keepPreviousData,
+  });
 
-  const handleGroupFilterChange = (v: string | null) => {
-    setGroupFilter(!v || v === "__all__" ? "" : v);
+  const users = usersData?.items ?? [];
+  const total = usersData?.count ?? 0;
+
+  // Groups for filter & create dialog
+  const { data: groupsData } = useQuery({
+    queryKey: queryKeys.adminGroups({ limit: 100 }),
+    queryFn: () => adminGroup.list({ limit: 100 }),
+  });
+
+  const groups = groupsData?.items ?? [];
+
+  const handleSearch = () => {
+    setEmailFilter(draftEmail);
+    setNicknameFilter(draftNickname);
+    setGroupFilter(draftGroup);
+    setStatusFilter(draftStatus);
     setPage(0);
   };
 
-  const handleStatusFilterChange = (v: string | null) => {
-    setStatusFilter(!v || v === "__all__" ? "" : v);
+  const handleReset = () => {
+    setDraftEmail("");
+    setDraftNickname("");
+    setDraftGroup("");
+    setDraftStatus("");
+    setEmailFilter("");
+    setNicknameFilter("");
+    setGroupFilter("");
+    setStatusFilter("");
     setPage(0);
   };
 
@@ -158,41 +158,38 @@ export default function AdminUsersPage() {
     setCreateOpen(true);
   };
 
-  const handleCreate = async () => {
-    if (!formEmail.trim() || !formNickname.trim() || !formGroupId) return;
-    setSubmitting(true);
-    try {
-      const req: AdminUserCreateRequest = {
-        email: formEmail.trim(),
-        password: formPassword || undefined,
-        nickname: formNickname.trim(),
-        group_id: formGroupId,
-      };
-      await adminUser.create(req);
+  const createMutation = useMutation({
+    mutationFn: (req: AdminUserCreateRequest) => adminUser.create(req),
+    onSuccess: () => {
       toast.success(t("adminUser.createSuccess"));
       setCreateOpen(false);
-      loadUsers();
-    } catch (err) {
-      toast.error(resolveErrorMessage(err));
-    } finally {
-      setSubmitting(false);
-    }
-  };
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+    },
+  });
 
-  const handleBatchDelete = async () => {
-    if (deleteIds.length === 0) return;
-    setDeleting(true);
-    try {
-      await adminUser.delete(deleteIds);
-      toast.success(t("adminUser.deleteSuccess", { count: deleteIds.length }));
+  const deleteMutation = useMutation({
+    mutationFn: (ids: string[]) => adminUser.delete(ids),
+    onSuccess: (_data, ids) => {
+      toast.success(t("adminUser.deleteSuccess", { count: ids.length }));
       setDeleteIds([]);
       setSelected(new Set());
-      loadUsers();
-    } catch (err) {
-      toast.error(resolveErrorMessage(err));
-    } finally {
-      setDeleting(false);
-    }
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+    },
+  });
+
+  const handleCreate = () => {
+    if (!formEmail.trim() || !formNickname.trim() || !formGroupId) return;
+    createMutation.mutate({
+      email: formEmail.trim(),
+      password: formPassword || undefined,
+      nickname: formNickname.trim(),
+      group_id: formGroupId,
+    });
+  };
+
+  const handleBatchDelete = () => {
+    if (deleteIds.length === 0) return;
+    deleteMutation.mutate(deleteIds);
   };
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -204,6 +201,37 @@ export default function AdminUsersPage() {
       system_banned: t("adminUser.statusSystemBanned"),
     };
     return map[status] ?? status;
+  };
+
+  const statusFilterLabel = (status: string) => {
+    const map: Record<string, string> = {
+      active: t("adminUser.statusActive"),
+      admin_banned: t("adminUser.statusAdminBanned"),
+      system_banned: t("adminUser.statusSystemBanned"),
+    };
+    return map[status] ?? t("adminUser.allStatuses");
+  };
+
+  // Get display name for the selected group
+  const selectedGroupName = draftGroup
+    ? groups.find((g) => g.id === draftGroup)?.name
+    : undefined;
+
+  // Generate pagination page numbers with ellipsis
+  const getPageNumbers = () => {
+    const pages: (number | "ellipsis")[] = [];
+    if (totalPages <= 7) {
+      for (let i = 0; i < totalPages; i++) pages.push(i);
+    } else {
+      pages.push(0);
+      if (page > 2) pages.push("ellipsis");
+      const start = Math.max(1, page - 1);
+      const end = Math.min(totalPages - 2, page + 1);
+      for (let i = start; i <= end; i++) pages.push(i);
+      if (page < totalPages - 3) pages.push("ellipsis");
+      pages.push(totalPages - 1);
+    }
+    return pages;
   };
 
   return (
@@ -233,40 +261,97 @@ export default function AdminUsersPage() {
       <div className="flex flex-wrap items-end gap-3">
         <div className="grid gap-1">
           <Label className="text-xs">{t("adminUser.filterByEmail")}</Label>
-          <Input className="h-8 w-48" placeholder={t("adminUser.emailPlaceholder")} onChange={(e) => handleEmailChange(e.target.value)} />
+          <Input
+            className="h-8 w-48"
+            placeholder={t("adminUser.emailPlaceholder")}
+            value={draftEmail}
+            onChange={(e) => setDraftEmail(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+          />
         </div>
         <div className="grid gap-1">
           <Label className="text-xs">{t("adminUser.filterByNickname")}</Label>
-          <Input className="h-8 w-40" placeholder={t("adminUser.nicknamePlaceholder")} onChange={(e) => handleNicknameChange(e.target.value)} />
+          <Input
+            className="h-8 w-40"
+            placeholder={t("adminUser.nicknamePlaceholder")}
+            value={draftNickname}
+            onChange={(e) => setDraftNickname(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+          />
         </div>
         <div className="grid gap-1">
           <Label className="text-xs">{t("adminUser.filterByGroup")}</Label>
-          <Select value={groupFilter || "__all__"} onValueChange={handleGroupFilterChange}>
-            <SelectTrigger className="h-8 w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">{t("adminUser.allGroups")}</SelectItem>
-              {groups.map((g) => (
-                <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Popover open={groupOpen} onOpenChange={setGroupOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={groupOpen}
+                className="h-8 w-48 justify-between font-normal"
+              >
+                <span className="truncate">
+                  {selectedGroupName ?? t("adminUser.allGroups")}
+                </span>
+                <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48 p-0">
+              <Command>
+                <CommandInput placeholder={t("common.searchGroup")} />
+                <CommandList>
+                  <CommandEmpty>{t("common.noData")}</CommandEmpty>
+                  <CommandGroup>
+                    <CommandItem
+                      value={t("adminUser.allGroups")}
+                      data-checked={!draftGroup}
+                      onSelect={() => {
+                        setDraftGroup("");
+                        setGroupOpen(false);
+                      }}
+                    >
+                      {t("adminUser.allGroups")}
+                    </CommandItem>
+                    {groups.map((g) => (
+                      <CommandItem
+                        key={g.id}
+                        value={g.name}
+                        data-checked={draftGroup === g.id}
+                        onSelect={() => {
+                          setDraftGroup(g.id);
+                          setGroupOpen(false);
+                        }}
+                      >
+                        {g.name}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
         <div className="grid gap-1">
           <Label className="text-xs">{t("adminUser.filterByStatus")}</Label>
-          <Select value={statusFilter || "__all__"} onValueChange={handleStatusFilterChange}>
+          <Select value={draftStatus || "all"} onValueChange={(v) => setDraftStatus(v === "all" ? "" : v)}>
             <SelectTrigger className="h-8 w-36">
-              <SelectValue />
+              {statusFilterLabel(draftStatus)}
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__all__">{t("adminUser.allStatuses")}</SelectItem>
+              <SelectItem value="all">{t("adminUser.allStatuses")}</SelectItem>
               <SelectItem value="active">{t("adminUser.statusActive")}</SelectItem>
               <SelectItem value="admin_banned">{t("adminUser.statusAdminBanned")}</SelectItem>
               <SelectItem value="system_banned">{t("adminUser.statusSystemBanned")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
+        <Button size="sm" className="h-8" onClick={handleSearch}>
+          <Search className="mr-2 size-4" />
+          {t("common.search")}
+        </Button>
+        <Button size="sm" variant="outline" className="h-8" onClick={handleReset}>
+          <RotateCcw className="mr-2 size-4" />
+          {t("common.reset")}
+        </Button>
       </div>
 
       {loading ? (
@@ -308,7 +393,7 @@ export default function AdminUsersPage() {
                 <TableHead>{t("adminUser.group")}</TableHead>
                 <TableHead className="w-28">{t("adminUser.status")}</TableHead>
                 <TableHead className="w-24 text-right">{t("adminUser.storage")}</TableHead>
-                <TableHead className="w-40 text-right">{t("adminUser.createdAt")}</TableHead>
+                <TableHead className="w-40 text-right">{t("adminUser.registeredAt")}</TableHead>
                 <TableHead className="w-24 text-right">{t("adminUser.actions")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -358,17 +443,40 @@ export default function AdminUsersPage() {
           </Table>
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2">
-              <Button variant="outline" size="icon" className="size-8" disabled={page === 0} onClick={() => setPage(page - 1)}>
-                <ChevronLeft className="size-4" />
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                {page + 1} / {totalPages}
-              </span>
-              <Button variant="outline" size="icon" className="size-8" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
-                <ChevronRight className="size-4" />
-              </Button>
-            </div>
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    text={t("common.previousPage")}
+                    onClick={() => setPage(Math.max(0, page - 1))}
+                    className={cn(page === 0 && "pointer-events-none opacity-50")}
+                  />
+                </PaginationItem>
+                {getPageNumbers().map((p, i) =>
+                  p === "ellipsis" ? (
+                    <PaginationItem key={`e${i}`}>
+                      <PaginationEllipsis />
+                    </PaginationItem>
+                  ) : (
+                    <PaginationItem key={p}>
+                      <PaginationLink
+                        isActive={p === page}
+                        onClick={() => setPage(p)}
+                      >
+                        {p + 1}
+                      </PaginationLink>
+                    </PaginationItem>
+                  )
+                )}
+                <PaginationItem>
+                  <PaginationNext
+                    text={t("common.nextPage")}
+                    onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
+                    className={cn(page >= totalPages - 1 && "pointer-events-none opacity-50")}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
           )}
         </>
       )}
@@ -395,24 +503,54 @@ export default function AdminUsersPage() {
             </div>
             <div className="grid gap-2">
               <Label>{t("adminUser.group")}</Label>
-              <Select value={formGroupId} onValueChange={(v) => { if (v) setFormGroupId(v); }}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t("adminUser.selectGroup")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {groups.map((g) => (
-                    <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={formGroupOpen} onOpenChange={setFormGroupOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={formGroupOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    <span className="truncate">
+                      {formGroupId
+                        ? groups.find((g) => g.id === formGroupId)?.name ?? formGroupId
+                        : t("adminUser.selectGroup")}
+                    </span>
+                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder={t("common.searchGroup")} />
+                    <CommandList>
+                      <CommandEmpty>{t("common.noData")}</CommandEmpty>
+                      <CommandGroup>
+                        {groups.map((g) => (
+                          <CommandItem
+                            key={g.id}
+                            value={g.name}
+                            data-checked={formGroupId === g.id}
+                            onSelect={() => {
+                              setFormGroupId(g.id);
+                              setFormGroupOpen(false);
+                            }}
+                          >
+                            {g.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={submitting}>
+            <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={createMutation.isPending}>
               {t("common.cancel")}
             </Button>
-            <Button onClick={handleCreate} disabled={submitting || !formEmail.trim() || !formNickname.trim() || !formGroupId}>
-              {submitting && <Loader2 className="mr-2 size-4 animate-spin" />}
+            <Button onClick={handleCreate} disabled={createMutation.isPending || !formEmail.trim() || !formNickname.trim() || !formGroupId}>
+              {createMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
               {t("common.create")}
             </Button>
           </DialogFooter>
@@ -427,11 +565,11 @@ export default function AdminUsersPage() {
             <DialogDescription>{t("adminUser.deleteConfirm", { count: deleteIds.length })}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteIds([])} disabled={deleting}>
+            <Button variant="outline" onClick={() => setDeleteIds([])} disabled={deleteMutation.isPending}>
               {t("common.cancel")}
             </Button>
-            <Button variant="destructive" onClick={handleBatchDelete} disabled={deleting}>
-              {deleting && <Loader2 className="mr-2 size-4 animate-spin" />}
+            <Button variant="destructive" onClick={handleBatchDelete} disabled={deleteMutation.isPending}>
+              {deleteMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
               {t("common.delete")}
             </Button>
           </DialogFooter>

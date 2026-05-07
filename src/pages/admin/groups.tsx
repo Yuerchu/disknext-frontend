@@ -1,25 +1,27 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Users, Shield } from "lucide-react";
-import { adminGroup, resolveErrorMessage } from "@/api";
-import type { AdminGroupResponse, AdminGroupCreateRequest, AdminGroupUpdateRequest } from "@/api";
-import { ScopePicker } from "@/components/admin/scope-picker";
+import {
+  Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious,
+} from "@/components/ui/pagination";
+import { Plus, Pencil, Trash2, Loader2, Users, Shield } from "lucide-react";
+import { adminGroup } from "@/api";
+import type { AdminGroupResponse } from "@/api";
+import { queryKeys } from "@/lib/query-keys";
+import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 20;
 
@@ -33,125 +35,60 @@ function formatBytes(bytes: number): string {
 export default function AdminGroupsPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [groups, setGroups] = useState<AdminGroupResponse[]>([]);
-  const [total, setTotal] = useState(0);
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
-  const [loading, setLoading] = useState(true);
-
-  // Create/Edit dialog
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<AdminGroupResponse | null>(null);
-  const [formName, setFormName] = useState("");
-  const [formMaxStorage, setFormMaxStorage] = useState("0");
-  const [formSpeedLimit, setFormSpeedLimit] = useState("0");
-  const [formAdmin, setFormAdmin] = useState(false);
-  const [formScopes, setFormScopes] = useState<string[]>([]);
-  const [formPolicyIds, setFormPolicyIds] = useState("");
-  const [submitting, setSubmitting] = useState(false);
 
   // Delete dialog
   const [deleteTarget, setDeleteTarget] = useState<AdminGroupResponse | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
-  const loadGroups = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await adminGroup.list({ offset: page * PAGE_SIZE, limit: PAGE_SIZE });
-      setGroups(data.items);
-      setTotal(data.count);
-    } catch (err) {
-      toast.error(resolveErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [page]);
+  const queryParams = { offset: page * PAGE_SIZE, limit: PAGE_SIZE };
 
-  useEffect(() => {
-    loadGroups();
-  }, [loadGroups]);
+  const { data, isLoading: loading } = useQuery({
+    queryKey: queryKeys.adminGroups(queryParams),
+    queryFn: () => adminGroup.list(queryParams),
+    placeholderData: keepPreviousData,
+  });
 
-  const openCreateDialog = () => {
-    setEditTarget(null);
-    setFormName("");
-    setFormMaxStorage("0");
-    setFormSpeedLimit("0");
-    setFormAdmin(false);
-    setFormScopes([]);
-    setFormPolicyIds("");
-    setDialogOpen(true);
-  };
+  const groups = data?.items ?? [];
+  const total = data?.count ?? 0;
 
-  const openEditDialog = (group: AdminGroupResponse) => {
-    setEditTarget(group);
-    setFormName(group.name);
-    setFormMaxStorage(String(group.max_storage));
-    setFormSpeedLimit(String(group.speed_limit));
-    setFormAdmin(group.admin);
-    setFormScopes([...group.scopes]);
-    setFormPolicyIds(group.policy_ids.join(", "));
-    setDialogOpen(true);
-  };
-
-  const handleSubmit = async () => {
-    if (!formName.trim()) return;
-    setSubmitting(true);
-    try {
-      const policyIds = formPolicyIds.trim() ? formPolicyIds.split(",").map((s) => s.trim()).filter(Boolean) : [];
-
-      if (editTarget) {
-        const req: AdminGroupUpdateRequest = {
-          name: formName.trim(),
-          max_storage: parseInt(formMaxStorage) || 0,
-          speed_limit: parseInt(formSpeedLimit) || 0,
-          admin: formAdmin,
-          scopes: formScopes,
-          policy_ids: policyIds,
-        };
-        await adminGroup.update(editTarget.id, req);
-        toast.success(t("adminGroup.updateSuccess"));
-      } else {
-        const req: AdminGroupCreateRequest = {
-          name: formName.trim(),
-          max_storage: parseInt(formMaxStorage) || 0,
-          speed_limit: parseInt(formSpeedLimit) || 0,
-          admin: formAdmin,
-          scopes: formScopes,
-          policy_ids: policyIds,
-        };
-        await adminGroup.create(req);
-        toast.success(t("adminGroup.createSuccess"));
-      }
-      setDialogOpen(false);
-      loadGroups();
-    } catch (err) {
-      toast.error(resolveErrorMessage(err));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      await adminGroup.delete(deleteTarget.id);
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => adminGroup.delete(id),
+    onSuccess: () => {
       toast.success(t("adminGroup.deleteSuccess"));
       setDeleteTarget(null);
-      loadGroups();
-    } catch (err) {
-      toast.error(resolveErrorMessage(err));
-    } finally {
-      setDeleting(false);
-    }
+      queryClient.invalidateQueries({ queryKey: ["admin", "groups"] });
+    },
+  });
+
+  const handleDelete = () => {
+    if (!deleteTarget) return;
+    deleteMutation.mutate(deleteTarget.id);
   };
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
+
+  const getPageNumbers = () => {
+    const pages: (number | "ellipsis")[] = [];
+    if (totalPages <= 7) {
+      for (let i = 0; i < totalPages; i++) pages.push(i);
+    } else {
+      pages.push(0);
+      if (page > 2) pages.push("ellipsis");
+      const start = Math.max(1, page - 1);
+      const end = Math.min(totalPages - 2, page + 1);
+      for (let i = start; i <= end; i++) pages.push(i);
+      if (page < totalPages - 3) pages.push("ellipsis");
+      pages.push(totalPages - 1);
+    }
+    return pages;
+  };
 
   return (
     <div className="flex flex-1 flex-col gap-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">{t("adminGroup.title")}</h2>
-        <Button size="sm" onClick={openCreateDialog}>
+        <Button size="sm" onClick={() => navigate("/admin/groups/new")}>
           <Plus className="mr-2 size-4" />
           {t("adminGroup.createGroup")}
         </Button>
@@ -220,7 +157,7 @@ export default function AdminGroupsPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="size-8" onClick={() => openEditDialog(group)}>
+                      <Button variant="ghost" size="icon" className="size-8" onClick={() => navigate(`/admin/groups/${group.id}`)}>
                         <Pencil className="size-4" />
                       </Button>
                       <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => setDeleteTarget(group)}>
@@ -234,74 +171,43 @@ export default function AdminGroupsPage() {
           </Table>
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2">
-              <Button variant="outline" size="icon" className="size-8" disabled={page === 0} onClick={() => setPage(page - 1)}>
-                <ChevronLeft className="size-4" />
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                {page + 1} / {totalPages}
-              </span>
-              <Button variant="outline" size="icon" className="size-8" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
-                <ChevronRight className="size-4" />
-              </Button>
-            </div>
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    text={t("common.previousPage")}
+                    onClick={() => setPage(Math.max(0, page - 1))}
+                    className={cn(page === 0 && "pointer-events-none opacity-50")}
+                  />
+                </PaginationItem>
+                {getPageNumbers().map((p, i) =>
+                  p === "ellipsis" ? (
+                    <PaginationItem key={`e${i}`}>
+                      <PaginationEllipsis />
+                    </PaginationItem>
+                  ) : (
+                    <PaginationItem key={p}>
+                      <PaginationLink
+                        isActive={p === page}
+                        onClick={() => setPage(p)}
+                      >
+                        {p + 1}
+                      </PaginationLink>
+                    </PaginationItem>
+                  )
+                )}
+                <PaginationItem>
+                  <PaginationNext
+                    text={t("common.nextPage")}
+                    onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
+                    className={cn(page >= totalPages - 1 && "pointer-events-none opacity-50")}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
           )}
         </>
       )}
-
-      {/* Create/Edit dialog */}
-      <Dialog open={dialogOpen} onOpenChange={(v) => { if (!v) setDialogOpen(false); }}>
-        <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editTarget ? t("adminGroup.editGroup") : t("adminGroup.createGroup")}</DialogTitle>
-            <DialogDescription>
-              {editTarget ? t("adminGroup.basicInfoDesc") : t("adminGroup.noGroupsHint")}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label>{t("adminGroup.name")}</Label>
-              <Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder={t("adminGroup.namePlaceholder")} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label>{t("adminGroup.maxStorage")}</Label>
-                <Input type="number" min="0" value={formMaxStorage} onChange={(e) => setFormMaxStorage(e.target.value)} />
-                <p className="text-xs text-muted-foreground">{t("adminGroup.maxStorageHint")}</p>
-              </div>
-              <div className="grid gap-2">
-                <Label>{t("adminGroup.speedLimit")}</Label>
-                <Input type="number" min="0" value={formSpeedLimit} onChange={(e) => setFormSpeedLimit(e.target.value)} />
-                <p className="text-xs text-muted-foreground">{t("adminGroup.speedLimitHint")}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Switch checked={formAdmin} onCheckedChange={setFormAdmin} />
-              <div>
-                <Label>{t("adminGroup.admin")}</Label>
-                <p className="text-xs text-muted-foreground">{t("adminGroup.adminDesc")}</p>
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label>{t("adminGroup.scopes")}</Label>
-              <ScopePicker value={formScopes} onChange={setFormScopes} />
-            </div>
-            <div className="grid gap-2">
-              <Label>{t("adminGroup.policyIds")}</Label>
-              <Input value={formPolicyIds} onChange={(e) => setFormPolicyIds(e.target.value)} placeholder={t("adminGroup.policyIdsPlaceholder")} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>
-              {t("common.cancel")}
-            </Button>
-            <Button onClick={handleSubmit} disabled={submitting || !formName.trim()}>
-              {submitting && <Loader2 className="mr-2 size-4 animate-spin" />}
-              {editTarget ? t("common.save") : t("common.create")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete confirmation */}
       <Dialog open={!!deleteTarget} onOpenChange={(v) => { if (!v) setDeleteTarget(null); }}>
@@ -311,11 +217,11 @@ export default function AdminGroupsPage() {
             <DialogDescription>{t("adminGroup.deleteConfirm", { name: deleteTarget?.name })}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>
               {t("common.cancel")}
             </Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-              {deleting && <Loader2 className="mr-2 size-4 animate-spin" />}
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteMutation.isPending}>
+              {deleteMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
               {t("common.delete")}
             </Button>
           </DialogFooter>

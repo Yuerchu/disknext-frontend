@@ -32,6 +32,9 @@ import type {
   TwoFactorSetupResponse, TwoFactorEnableRequest,
   AuthnDetailResponse, AuthnRenameRequest, AuthnFinishRequest,
   UserFileAppDefaultResponse, SetDefaultViewerRequest,
+  SudoCodeRequest, SudoRequest, SudoResponse,
+  ChangeEmailCodeRequest, ChangeEmailRequest,
+  ChangePhoneCodeRequest, ChangePhoneRequest,
 } from "./types";
 
 // 重导出
@@ -78,6 +81,16 @@ export const auth = {
     http.post<TokenResponse>("/api/v1/user/session/refresh", null, {
       headers: { Authorization: `Bearer ${refreshToken}` },
     }).then((r) => r.data),
+};
+
+// --- Sudo 身份验证 ---
+
+export const sudo = {
+  sendCode: (req: SudoCodeRequest) =>
+    http.post<void>("/api/v1/user/sudo/code", req),
+
+  verify: (req: SudoRequest) =>
+    http.post<SudoResponse>("/api/v1/user/sudo", req).then((r) => r.data),
 };
 
 // --- 用户 ---
@@ -283,6 +296,26 @@ export const userSettings = {
 
   changePassword: (data: ChangePasswordRequest) =>
     http.patch<void>("/api/v1/user/settings/password", data),
+
+  sendChangeEmailCode: (data: ChangeEmailCodeRequest, sudoToken: string) =>
+    http.post<void>("/api/v1/user/settings/change-email/code", data, {
+      headers: { "x-sudo-token": sudoToken },
+    }),
+
+  changeEmail: (data: ChangeEmailRequest, sudoToken: string) =>
+    http.patch<void>("/api/v1/user/settings/email", data, {
+      headers: { "x-sudo-token": sudoToken },
+    }),
+
+  sendChangePhoneCode: (data: ChangePhoneCodeRequest, sudoToken: string) =>
+    http.post<void>("/api/v1/user/settings/change-phone/code", data, {
+      headers: { "x-sudo-token": sudoToken },
+    }),
+
+  changePhone: (data: ChangePhoneRequest, sudoToken: string) =>
+    http.patch<void>("/api/v1/user/settings/phone", data, {
+      headers: { "x-sudo-token": sudoToken },
+    }),
 
   get2FASetup: () =>
     http.get<TwoFactorSetupResponse>("/api/v1/user/settings/2fa").then((r) => r.data),

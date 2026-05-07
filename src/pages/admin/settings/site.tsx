@@ -8,11 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { adminSettings } from "@/api";
-import { useSettings } from "@/hooks/use-settings";
+import { useAdminSettings } from "@/hooks/use-admin-settings";
 
 export default function SiteSettingsPage() {
   const { t } = useTranslation();
-  const { data, loading, saving, save, update } = useSettings(
+  const { data, loading, saving, save, update } = useAdminSettings(
+    "site",
     adminSettings.site,
     t("adminSettings.saveSuccess"),
   );
