@@ -152,7 +152,7 @@ export interface ChangePhoneRequest {
 // --- 文件/目录 ---
 
 export type EntryType = "file" | "folder" | "symlink";
-export type PolicyType = "local" | "s3";
+export type PolicyType = "local" | "s3" | "cos" | "oss" | "onedrive" | "onedrive_cn" | "google_drive" | "upyun";
 
 export interface EntryResponse {
   id: string;
@@ -700,4 +700,149 @@ export interface UserFileAppDefaultResponse {
 export interface SetDefaultViewerRequest {
   extension: string;
   app_id: string;
+}
+
+// --- 管理员：存储策略 ---
+
+export interface AdminPolicySummary {
+  id: string;
+  name: string;
+  policy_type: PolicyType;
+  max_size: number;
+  is_private: boolean;
+}
+
+// GET 详情返回（所有类型字段合并为可选）
+export interface AdminPolicyDetail {
+  id: string;
+  name: string;
+  policy_type: PolicyType;
+  max_size: number;
+  auto_rename: boolean;
+  dir_name_rule: string | null;
+  file_name_rule: string | null;
+  is_private: boolean;
+  base_url: string | null;
+  is_origin_link_enable: boolean;
+  token: string | null;
+  file_type: string | null;
+  mimetype: string | null;
+  chunk_size: number;
+  // local
+  server?: string;
+  // s3 / cos / oss
+  bucket_name?: string;
+  access_key?: string;
+  secret_key?: string;
+  s3_region?: string;
+  s3_path_style?: boolean;
+  // onedrive
+  od_redirect?: string;
+  client_id?: string;
+  client_secret?: string;
+  drive_id?: string;
+  tenant_id?: string;
+  // google_drive
+  folder_id?: string;
+  // upyun
+  operator?: string;
+  password?: string;
+  domain?: string;
+}
+
+// 通用策略字段（各类型 create/update 的基础）
+export interface AdminPolicyCommonRequest {
+  name: string;
+  max_size?: number;
+  auto_rename?: boolean;
+  dir_name_rule?: string | null;
+  file_name_rule?: string | null;
+  is_private?: boolean;
+  base_url?: string | null;
+  is_origin_link_enable?: boolean;
+  token?: string | null;
+  file_type?: string | null;
+  mimetype?: string | null;
+  chunk_size?: number;
+}
+
+export interface LocalPolicyCreateRequest extends AdminPolicyCommonRequest {
+  server: string;
+}
+
+export interface S3PolicyCreateRequest extends AdminPolicyCommonRequest {
+  server: string;
+  bucket_name: string;
+  access_key: string;
+  secret_key: string;
+  s3_region?: string;
+  s3_path_style?: boolean;
+}
+
+export interface COSPolicyCreateRequest extends AdminPolicyCommonRequest {
+  server: string;
+  bucket_name: string;
+  access_key: string;
+  secret_key: string;
+  s3_region?: string;
+}
+
+export interface OSSPolicyCreateRequest extends AdminPolicyCommonRequest {
+  server: string;
+  bucket_name: string;
+  access_key: string;
+  secret_key: string;
+  s3_region?: string;
+}
+
+export interface OneDrivePolicyCreateRequest extends AdminPolicyCommonRequest {
+  client_id: string;
+  client_secret: string;
+  server?: string | null;
+  od_redirect?: string | null;
+  drive_id?: string | null;
+  tenant_id?: string | null;
+}
+
+export interface GoogleDrivePolicyCreateRequest extends AdminPolicyCommonRequest {
+  client_id: string;
+  client_secret: string;
+  folder_id?: string | null;
+}
+
+export interface UpyunPolicyCreateRequest extends AdminPolicyCommonRequest {
+  operator: string;
+  password: string;
+  bucket_name: string;
+  domain?: string | null;
+}
+
+// 测试端点
+export interface PolicyTestPathRequest {
+  path: string;
+}
+
+export interface PathTestResponse {
+  path: string;
+  is_exists: boolean;
+  is_writable: boolean;
+}
+
+export interface PolicyTestS3Request {
+  server: string;
+  bucket_name: string;
+  access_key: string;
+  secret_key: string;
+  s3_region?: string;
+  s3_path_style?: boolean;
+}
+
+export interface S3TestResponse {
+  is_connected: boolean;
+  message: string;
+}
+
+export interface PolicyTestSlaveRequest {
+  server: string;
+  secret: string;
 }

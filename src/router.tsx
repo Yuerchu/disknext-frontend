@@ -18,6 +18,8 @@ import AdminHomePage from "@/pages/admin/home";
 import AdminPlaceholder from "@/pages/admin/placeholder";
 import AdminGroupsPage from "@/pages/admin/groups";
 import AdminGroupDetailPage from "@/pages/admin/group-detail";
+import AdminPoliciesPage from "@/pages/admin/policies";
+import AdminPolicyDetailPage from "@/pages/admin/policy-detail";
 import AdminUsersPage from "@/pages/admin/users";
 import AdminUserDetailPage from "@/pages/admin/user-detail";
 
@@ -66,7 +68,8 @@ export const router = createBrowserRouter([
       { path: "/admin/settings/task", element: <TaskSettingsPage /> },
       { path: "/admin/settings/advanced", element: <AdvancedSettingsPage /> },
       { path: "/admin/fs/:section", element: <AdminPlaceholder /> },
-      { path: "/admin/policies", element: <AdminPlaceholder /> },
+      { path: "/admin/policies", element: <AdminPoliciesPage /> },
+      { path: "/admin/policies/:policyId", element: <AdminPolicyDetailPage /> },
       { path: "/admin/nodes", element: <AdminPlaceholder /> },
       { path: "/admin/groups", element: <AdminGroupsPage /> },
       { path: "/admin/groups/:groupId", element: <AdminGroupDetailPage /> },

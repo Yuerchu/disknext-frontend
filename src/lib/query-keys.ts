@@ -16,6 +16,8 @@ export const queryKeys = {
   adminGroup: (id: string) => ["admin", "group", id] as const,
   adminGroupMembers: (id: string, params: Record<string, unknown>) =>
     ["admin", "group", id, "members", params] as const,
+  adminPolicies: (params?: Record<string, unknown>) => ["admin", "policies", params ?? {}] as const,
+  adminPolicy: (id: string) => ["admin", "policy", id] as const,
   adminScopeMetadata: () => ["admin", "scope", "metadata"] as const,
   adminSettings: (section: string) => ["admin", "settings", section] as const,
 

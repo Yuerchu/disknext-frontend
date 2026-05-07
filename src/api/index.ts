@@ -35,6 +35,15 @@ import type {
   SudoCodeRequest, SudoRequest, SudoResponse,
   ChangeEmailCodeRequest, ChangeEmailRequest,
   ChangePhoneCodeRequest, ChangePhoneRequest,
+  AdminPolicySummary, AdminPolicyDetail,
+  LocalPolicyCreateRequest, S3PolicyCreateRequest,
+  COSPolicyCreateRequest, OSSPolicyCreateRequest,
+  OneDrivePolicyCreateRequest, GoogleDrivePolicyCreateRequest,
+  UpyunPolicyCreateRequest,
+  PolicyTestPathRequest, PathTestResponse,
+  PolicyTestS3Request, S3TestResponse,
+  PolicyTestSlaveRequest,
+  ResponseBase,
 } from "./types";
 
 // 重导出
@@ -250,6 +259,71 @@ export const adminUser = {
 
   calibrate: (userId: string) =>
     http.post<AdminCalibrateResponse>(`/api/v1/admin/user/calibrate/${userId}`).then((r) => r.data),
+};
+
+// --- 管理员：存储策略 ---
+
+export const adminPolicy = {
+  list: (params?: PaginationParams) =>
+    http.get<ListResponse<AdminPolicySummary>>("/api/v1/admin/policy/", { params }).then((r) => r.data),
+
+  get: (id: string) =>
+    http.get<AdminPolicyDetail>(`/api/v1/admin/policy/${id}`).then((r) => r.data),
+
+  delete: (id: string) =>
+    http.delete<void>(`/api/v1/admin/policy/${id}`),
+
+  // 按类型创建
+  createLocal: (req: LocalPolicyCreateRequest) =>
+    http.post<void>("/api/v1/admin/policy/local", req),
+  createS3: (req: S3PolicyCreateRequest) =>
+    http.post<void>("/api/v1/admin/policy/s3", req),
+  createCos: (req: COSPolicyCreateRequest) =>
+    http.post<void>("/api/v1/admin/policy/cos", req),
+  createOss: (req: OSSPolicyCreateRequest) =>
+    http.post<void>("/api/v1/admin/policy/oss", req),
+  createOnedrive: (req: OneDrivePolicyCreateRequest) =>
+    http.post<void>("/api/v1/admin/policy/onedrive", req),
+  createOnedriveCn: (req: OneDrivePolicyCreateRequest) =>
+    http.post<void>("/api/v1/admin/policy/onedrive", req),
+  createGoogleDrive: (req: GoogleDrivePolicyCreateRequest) =>
+    http.post<void>("/api/v1/admin/policy/google_drive", req),
+  createUpyun: (req: UpyunPolicyCreateRequest) =>
+    http.post<void>("/api/v1/admin/policy/upyun", req),
+
+  // 按类型更新
+  updateLocal: (id: string, req: Partial<LocalPolicyCreateRequest>) =>
+    http.patch<void>(`/api/v1/admin/policy/local/${id}`, req),
+  updateS3: (id: string, req: Partial<S3PolicyCreateRequest>) =>
+    http.patch<void>(`/api/v1/admin/policy/s3/${id}`, req),
+  updateCos: (id: string, req: Partial<COSPolicyCreateRequest>) =>
+    http.patch<void>(`/api/v1/admin/policy/cos/${id}`, req),
+  updateOss: (id: string, req: Partial<OSSPolicyCreateRequest>) =>
+    http.patch<void>(`/api/v1/admin/policy/oss/${id}`, req),
+  updateOnedrive: (id: string, req: Partial<OneDrivePolicyCreateRequest>) =>
+    http.patch<void>(`/api/v1/admin/policy/onedrive/${id}`, req),
+  updateOnedriveCn: (id: string, req: Partial<OneDrivePolicyCreateRequest>) =>
+    http.patch<void>(`/api/v1/admin/policy/onedrive/${id}`, req),
+  updateGoogleDrive: (id: string, req: Partial<GoogleDrivePolicyCreateRequest>) =>
+    http.patch<void>(`/api/v1/admin/policy/google_drive/${id}`, req),
+  updateUpyun: (id: string, req: Partial<UpyunPolicyCreateRequest>) =>
+    http.patch<void>(`/api/v1/admin/policy/upyun/${id}`, req),
+
+  // 测试
+  testPath: (req: PolicyTestPathRequest) =>
+    http.post<PathTestResponse>("/api/v1/admin/policy/test/path", req).then((r) => r.data),
+  testS3: (req: PolicyTestS3Request) =>
+    http.post<S3TestResponse>("/api/v1/admin/policy/test/s3", req).then((r) => r.data),
+  testSlave: (req: PolicyTestSlaveRequest) =>
+    http.post<void>("/api/v1/admin/policy/test/slave", req),
+
+  // 工具
+  createCors: () =>
+    http.post<ResponseBase>("/api/v1/admin/policy/cors").then((r) => r.data),
+  createScf: () =>
+    http.post<ResponseBase>("/api/v1/admin/policy/scf").then((r) => r.data),
+  getOAuthUrl: (id: string) =>
+    http.get<ResponseBase>(`/api/v1/admin/policy/${id}/oauth`).then((r) => r.data),
 };
 
 // --- 管理员设置 ---

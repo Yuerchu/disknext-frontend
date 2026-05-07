@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
+import { useUserStore } from "@/stores/user";
 import { Loader2, Plus, Pencil, Trash2, KeyRound, ShieldCheck, ShieldOff } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -111,12 +112,14 @@ export default function SecuritySection() {
         currentEmail={settingsQuery.data.email}
         onChanged={() => {
           queryClient.invalidateQueries({ queryKey: queryKeys.userSettings() });
+          useUserStore.getState().fetchProfile();
         }}
       />
       <ChangePhoneCard
         currentPhone={settingsQuery.data.phone}
         onChanged={() => {
           queryClient.invalidateQueries({ queryKey: queryKeys.userSettings() });
+          useUserStore.getState().fetchProfile();
         }}
       />
       <ChangePasswordCard />

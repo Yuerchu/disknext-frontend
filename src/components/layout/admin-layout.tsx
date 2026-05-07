@@ -8,11 +8,12 @@ import {
   BreadcrumbSeparator, BreadcrumbPage,
 } from "@/components/ui/breadcrumb";
 import { AdminSidebar } from "./admin-sidebar";
-import { useRequireAuth } from "@/hooks/use-auth";
+import { useRequireAuth, useInitUser } from "@/hooks/use-auth";
 import { useUserStore } from "@/stores/user";
 
 export function AdminLayout() {
   const ready = useRequireAuth();
+  useInitUser();
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
@@ -68,6 +69,10 @@ export function AdminLayout() {
     } else if (path.startsWith("/admin/groups/")) {
       crumbs.push({ label: pathLabelMap["/admin/groups"], path: "/admin/groups" });
       crumbs.push({ label: t("adminGroup.editGroup") });
+    } else if (path.startsWith("/admin/policies/")) {
+      crumbs.push({ label: pathLabelMap["/admin/policies"], path: "/admin/policies" });
+      const id = path.split("/").pop();
+      crumbs.push({ label: id === "new" ? t("adminPolicy.createPolicy") : t("adminPolicy.basicInfo") });
     } else {
       // Fallback: use last segment
       const segment = path.split("/").filter(Boolean).pop() ?? "";
