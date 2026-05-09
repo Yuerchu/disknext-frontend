@@ -228,6 +228,7 @@ export interface UploadSessionResponse {
   total_chunks: number;
   uploaded_chunks: number;
   expires_at: string;
+  upload_url: string | null;
 }
 
 export interface UploadChunkResponse {

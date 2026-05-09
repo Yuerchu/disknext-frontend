@@ -169,19 +169,34 @@ export const file = {
     http.post<{ access_token: string; access_expires: string }>(`/api/v1/file/download/${fileId}`).then((r) => r.data),
 
   getThumbUrl: (id: string): string =>
-    `${import.meta.env.VITE_API_URL || ""}/api/v1/file/thumb/${id}`,
+    `${import.meta.env.VITE_API_URL || ""}/api/v1/file/${id}/thumb`,
+
+  fetchThumb: (id: string) =>
+    http.get<Blob>(`/api/v1/file/${id}/thumb`, { responseType: "blob" }).then((r) => r.data),
 
   createUploadSession: (req: CreateUploadSessionRequest) =>
-    http.post<UploadSessionResponse>("/api/v1/file/upload", req).then((r) => r.data),
+    http.post<UploadSessionResponse>("/api/v1/file/upload/", req).then((r) => r.data),
 
-  uploadChunk: (sessionId: string, chunkIndex: number, fileBlob: Blob) => {
+  uploadChunk: (sessionId: string, chunkIndex: number, fileBlob: Blob, uploadUrl?: string | null) => {
+    if (uploadUrl) {
+      const path = new URL(uploadUrl, window.location.origin).pathname;
+      return fetch(`${path}/${chunkIndex}`, {
+        method: "POST",
+        body: fileBlob,
+        headers: { "Content-Type": "application/octet-stream" },
+      }).then((r) => r.json() as Promise<UploadChunkResponse>);
+    }
     const formData = new FormData();
-    formData.append("file", fileBlob);
+    formData.append("file", fileBlob, "chunk");
     return http.post<UploadChunkResponse>(
       `/api/v1/file/upload/${sessionId}/${chunkIndex}`,
       formData,
+      { headers: { "Content-Type": "multipart/form-data" } },
     ).then((r) => r.data);
   },
+
+  deleteUploadSession: (sessionId: string) =>
+    http.delete<void>(`/api/v1/file/upload/${sessionId}`),
 };
 
 // --- 分享 ---

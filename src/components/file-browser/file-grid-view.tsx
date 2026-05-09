@@ -1,10 +1,10 @@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { FileIcon } from "./file-icon";
+import { ThumbImage } from "./thumb-image";
 import { FileContextMenu, type FileActions } from "./file-context-menu";
 import type { EntryResponse } from "@/api";
 import { cn } from "@/lib/utils";
-import { file } from "@/api";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -30,7 +30,8 @@ export function FileGridView({ items, selectedIds, showThumb, onSelect, onNaviga
       {items.map((entry) => {
         const isFolder = entry.type === "folder";
         const selected = selectedIds.has(entry.id);
-        const showImage = showThumb && entry.thumb && !isFolder;
+        const isThumbable = !!entry.mime_type && /^(image|video|audio)\//.test(entry.mime_type);
+        const showImage = showThumb && !isFolder && (entry.thumb || isThumbable);
 
         return (
           <FileContextMenu key={entry.id} target={{ type: isFolder ? "folder" : "file", entry }} actions={actions}>
@@ -55,7 +56,7 @@ export function FileGridView({ items, selectedIds, showThumb, onSelect, onNaviga
               </div>
 
               {showImage ? (
-                <img src={file.getThumbUrl(entry.id)} alt={entry.name} loading="lazy" className="size-12 rounded object-cover" />
+                <ThumbImage fileId={entry.id} alt={entry.name} className="size-12 rounded" />
               ) : (
                 <FileIcon name={entry.name} isFolder={isFolder} className="size-12" />
               )}
