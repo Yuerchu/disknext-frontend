@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { AppSidebar } from "./app-sidebar";
+import { UploadPanel } from "@/components/upload/upload-panel";
 import { useRequireAuth, useInitUser } from "@/hooks/use-auth";
 
 export interface UserLayoutContext {
@@ -70,6 +71,7 @@ export function UserLayout() {
           </div>
         </div>
       </SidebarInset>
+      <UploadPanel />
     </SidebarProvider>
   );
 }

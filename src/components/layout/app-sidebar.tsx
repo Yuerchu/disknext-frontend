@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation } from "react-router";
 import {
   FolderOpen, Image, Video, Music, FileText, Share2, Trash2,
-  HardDrive, Shield, Settings, Upload, Download, Globe,
+  HardDrive, Shield, Settings, Download, Globe,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup,
@@ -86,19 +86,6 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent className="flex flex-col gap-2">
-            {ability.can("create", "files") && (
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    tooltip={t("common.upload")}
-                    className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
-                  >
-                    <Upload />
-                    <span>{t("common.upload")}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            )}
             <SidebarMenu>
               {filterByScope(navItems).map((item) => (
                 <SidebarMenuItem key={item.path}>

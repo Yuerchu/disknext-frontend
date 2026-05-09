@@ -1,13 +1,15 @@
+import { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FolderOpen, Download, Pencil, Share2, Undo2,
-  Trash2, FolderPlus, FilePlus, RefreshCw,
+  Trash2, FolderPlus, FilePlus, RefreshCw, Upload,
 } from "lucide-react";
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem,
   ContextMenuSeparator, ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import type { EntryResponse } from "@/api";
+import { useUploadStore } from "@/stores/upload";
 
 export type MenuTarget =
   | { type: "empty" }
@@ -31,6 +33,7 @@ export interface FileActions {
   onRestore?: (entries: EntryResponse[]) => void;
   onPermanentDelete?: (entries: EntryResponse[]) => void;
   onEmptyTrash?: () => void;
+  directoryId?: string;
 }
 
 interface FileContextMenuProps {
@@ -43,6 +46,19 @@ interface FileContextMenuProps {
 
 export function FileContextMenu({ children, target, actions, selectedEntries, className }: FileContextMenuProps) {
   const { t } = useTranslation();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const addFiles = useUploadStore((s) => s.addFiles);
+
+  const handleUploadClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !actions.directoryId) return;
+    addFiles(Array.from(files), actions.directoryId);
+    e.target.value = "";
+  }, [actions.directoryId, addFiles]);
 
   return (
     <ContextMenu>
@@ -50,6 +66,12 @@ export function FileContextMenu({ children, target, actions, selectedEntries, cl
       <ContextMenuContent className="w-56">
         {target.type === "empty" && (
           <>
+            {actions.directoryId && (
+              <ContextMenuItem onClick={handleUploadClick}>
+                <Upload className="mr-2 size-4" />
+                {t("contextMenu.uploadFile")}
+              </ContextMenuItem>
+            )}
             <ContextMenuItem onClick={actions.onCreateFolder}>
               <FolderPlus className="mr-2 size-4" />
               {t("contextMenu.createFolder")}
@@ -172,6 +194,7 @@ export function FileContextMenu({ children, target, actions, selectedEntries, cl
           </>
         )}
       </ContextMenuContent>
+      <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} />
     </ContextMenu>
   );
 }

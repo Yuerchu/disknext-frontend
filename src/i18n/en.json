@@ -769,6 +769,17 @@
       "actions": "Actions"
     }
   },
+  "upload": {
+    "title": "Upload Tasks",
+    "uploading": "Uploading {{count}} files",
+    "dropHere": "Drop files here to upload",
+    "progress": "{{done}}/{{total}} complete",
+    "errorCount": "{{count}} failed",
+    "retry": "Retry",
+    "removeTask": "Remove",
+    "clearCompleted": "Clear completed",
+    "selectFiles": "Select files"
+  },
   "sudo": {
     "title": "Identity Verification",
     "description": "Please verify your identity to continue",

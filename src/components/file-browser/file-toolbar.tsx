@@ -1,6 +1,7 @@
+import { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
-import { List, LayoutGrid, GalleryHorizontal, Image, ImageOff } from "lucide-react";
+import { List, LayoutGrid, GalleryHorizontal, Image, ImageOff, Upload } from "lucide-react";
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList,
   BreadcrumbPage, BreadcrumbSeparator,
@@ -9,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Toggle } from "@/components/ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useUploadStore } from "@/stores/upload";
 
 export type ViewMode = "list" | "grid" | "gallery";
 
@@ -16,6 +18,7 @@ interface FileToolbarProps {
   path: string;
   viewMode: ViewMode;
   showThumb: boolean;
+  directoryId: string | undefined;
   onViewModeChange: (mode: ViewMode) => void;
   onShowThumbChange: (show: boolean) => void;
 }
@@ -26,9 +29,22 @@ const viewModes: { value: ViewMode; icon: typeof List; labelKey: string }[] = [
   { value: "gallery", icon: GalleryHorizontal, labelKey: "file.viewGallery" },
 ];
 
-export function FileToolbar({ path, viewMode, showThumb, onViewModeChange, onShowThumbChange }: FileToolbarProps) {
+export function FileToolbar({ path, viewMode, showThumb, directoryId, onViewModeChange, onShowThumbChange }: FileToolbarProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const addFiles = useUploadStore((s) => s.addFiles);
+
+  const handleUploadClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !directoryId) return;
+    addFiles(Array.from(files), directoryId);
+    e.target.value = "";
+  }, [directoryId, addFiles]);
 
   const segments = path ? path.split("/").filter(Boolean) : [];
 
@@ -69,8 +85,15 @@ export function FileToolbar({ path, viewMode, showThumb, onViewModeChange, onSho
         </BreadcrumbList>
       </Breadcrumb>
 
-      {/* View controls */}
-      <div className="flex items-center gap-0.5 shrink-0">
+      {/* Controls */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        {/* Upload button */}
+        <Button variant="outline" size="sm" onClick={handleUploadClick} disabled={!directoryId}>
+          <Upload className="mr-1.5 size-4" />
+          {t("common.upload")}
+        </Button>
+        <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} />
+
         {/* View mode buttons */}
         <div className="flex items-center rounded-md border">
           {viewModes.map((mode) => (

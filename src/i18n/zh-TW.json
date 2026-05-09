@@ -769,6 +769,17 @@
       "actions": "操作"
     }
   },
+  "upload": {
+    "title": "上傳任務",
+    "uploading": "正在上傳 {{count}} 個檔案",
+    "dropHere": "拖放檔案到此處上傳",
+    "progress": "{{done}}/{{total}} 已完成",
+    "errorCount": "{{count}} 個失敗",
+    "retry": "重試",
+    "removeTask": "移除",
+    "clearCompleted": "清除已完成",
+    "selectFiles": "選擇檔案"
+  },
   "sudo": {
     "title": "身份驗證",
     "description": "請驗證您的身份以繼續操作",
