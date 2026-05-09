@@ -18,7 +18,7 @@ import {
 
 import { useAuthStore } from "@/stores/auth";
 import { useSiteConfigStore } from "@/stores/site-config";
-import { useRequireGuest } from "@/hooks/use-auth";
+import { useRequireGuest, useInitSiteTheme } from "@/hooks/use-auth";
 import { auth, resolveErrorMessage } from "@/api";
 import { ApiError } from "@/api";
 import { setLocale } from "@/i18n";
@@ -39,6 +39,7 @@ const locales = [
 
 export default function SessionPage() {
   useRequireGuest();
+  useInitSiteTheme();
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const setSession = useAuthStore((s) => s.setSession);

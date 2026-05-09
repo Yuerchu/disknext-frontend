@@ -38,6 +38,7 @@ export function AdminLayout() {
     "/admin/settings/avatar": t("admin.avatar"),
     "/admin/settings/pwa": t("admin.pwa"),
     "/admin/settings/appearance": t("admin.appearance"),
+    "/admin/settings/theme": t("admin.themePresets"),
     "/admin/settings/task": t("admin.taskSettings"),
     "/admin/settings/advanced": t("admin.advanced"),
     "/admin/fs/categories": t("admin.categories"),

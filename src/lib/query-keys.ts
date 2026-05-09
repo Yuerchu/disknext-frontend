@@ -20,6 +20,10 @@ export const queryKeys = {
   adminPolicy: (id: string) => ["admin", "policy", id] as const,
   adminScopeMetadata: () => ["admin", "scope", "metadata"] as const,
   adminSettings: (section: string) => ["admin", "settings", section] as const,
+  adminThemes: () => ["admin", "themes"] as const,
+
+  // Site
+  siteThemes: () => ["site", "themes"] as const,
 
   // User settings
   userSettings: () => ["user", "settings"] as const,

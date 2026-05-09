@@ -1,12 +1,13 @@
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { useRequireGuest } from "@/hooks/use-auth";
+import { useRequireGuest, useInitSiteTheme } from "@/hooks/use-auth";
 
 export default function LandingPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   useRequireGuest();
+  useInitSiteTheme();
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6">

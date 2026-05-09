@@ -44,6 +44,7 @@ import type {
   PolicyTestS3Request, S3TestResponse,
   PolicyTestSlaveRequest,
   ResponseBase,
+  ThemePresetListResponse, ThemePresetCreateRequest, ThemePresetUpdateRequest,
 } from "./types";
 
 // 重导出
@@ -117,6 +118,9 @@ export const user = {
 export const site = {
   getConfig: () =>
     http.get<SiteConfigResponse>("/api/v1/site/config").then((r) => r.data),
+
+  themes: () =>
+    http.get<ThemePresetListResponse>("/api/v1/site/themes").then((r) => r.data),
 };
 
 // --- 管理 ---
@@ -339,6 +343,25 @@ export const adminPolicy = {
     http.post<ResponseBase>("/api/v1/admin/policy/scf").then((r) => r.data),
   getOAuthUrl: (id: string) =>
     http.get<ResponseBase>(`/api/v1/admin/policy/${id}/oauth`).then((r) => r.data),
+};
+
+// --- 管理员：主题预设 ---
+
+export const adminTheme = {
+  list: () =>
+    http.get<ThemePresetListResponse>("/api/v1/admin/theme/").then((r) => r.data),
+
+  create: (req: ThemePresetCreateRequest) =>
+    http.post<void>("/api/v1/admin/theme/", req),
+
+  update: (id: string, req: ThemePresetUpdateRequest) =>
+    http.patch<void>(`/api/v1/admin/theme/${id}`, req),
+
+  delete: (id: string) =>
+    http.delete<void>(`/api/v1/admin/theme/${id}`),
+
+  setDefault: (id: string) =>
+    http.patch<void>(`/api/v1/admin/theme/${id}/default`),
 };
 
 // --- 管理员设置 ---

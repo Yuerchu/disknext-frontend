@@ -238,6 +238,7 @@
     "pwa": "PWA",
     "taskSettings": "Tasks",
     "advanced": "Advanced",
+    "themePresets": "Theme Presets",
     "backToHome": "Back to Home"
   },
   "adminHome": {
@@ -666,8 +667,18 @@
     "saveSuccess": "Settings saved",
     "tabs": {
       "profile": "Profile",
+      "appearance": "Appearance",
       "security": "Security",
       "viewers": "File Viewers"
+    },
+    "appearance": {
+      "darkMode": "Dark Mode",
+      "darkModeDesc": "Choose light, dark, or system theme",
+      "presetTitle": "Theme Presets",
+      "presetDesc": "Choose a theme preset configured by the administrator",
+      "customTitle": "Custom Theme",
+      "customDesc": "Customize colors and radius on top of the selected preset",
+      "noConfig": "Select a theme preset or configure custom settings"
     },
     "profile": {
       "avatarTitle": "Avatar",
@@ -797,5 +808,72 @@
     "resendIn": "Resend in {{seconds}}s",
     "verify": "Verify",
     "verifying": "Verifying..."
+  },
+  "adminTheme": {
+    "title": "Theme Presets",
+    "desc": "Create and manage site theme presets for users to choose from",
+    "create": "Create Preset",
+    "createDesc": "Configure a new theme preset",
+    "edit": "Edit Preset",
+    "editDesc": "Modify theme preset configuration",
+    "name": "Preset Name",
+    "namePlaceholder": "Enter preset name",
+    "style": "Style",
+    "baseColor": "Base Color",
+    "themeColor": "Theme Color",
+    "chartColor": "Chart Color",
+    "radius": "Radius",
+    "preview": "Preview",
+    "default": "Default",
+    "setDefault": "Set as Default",
+    "deleteTitle": "Delete Preset",
+    "deleteConfirm": "Are you sure you want to delete theme preset \"{{name}}\"? Users associated with this preset will have their theme cleared.",
+    "createSuccess": "Theme preset created",
+    "updateSuccess": "Theme preset updated",
+    "deleteSuccess": "Theme preset deleted",
+    "setDefaultSuccess": "Default theme updated",
+    "empty": "No theme presets yet. Click the button above to create one.",
+    "styles": {
+      "vega": "Vega (Standard)",
+      "nova": "Nova (Compact)",
+      "maia": "Maia (Spacious)",
+      "lyra": "Lyra (Sharp)",
+      "mira": "Mira (Minimal)",
+      "luma": "Luma (Soft)",
+      "sera": "Sera (Editorial)"
+    },
+    "colors": {
+      "neutral": "Neutral",
+      "stone": "Stone",
+      "zinc": "Zinc",
+      "mauve": "Mauve",
+      "olive": "Olive",
+      "mist": "Mist",
+      "taupe": "Taupe",
+      "amber": "Amber",
+      "blue": "Blue",
+      "cyan": "Cyan",
+      "emerald": "Emerald",
+      "fuchsia": "Fuchsia",
+      "green": "Green",
+      "indigo": "Indigo",
+      "lime": "Lime",
+      "orange": "Orange",
+      "pink": "Pink",
+      "purple": "Purple",
+      "red": "Red",
+      "rose": "Rose",
+      "sky": "Sky",
+      "teal": "Teal",
+      "violet": "Violet",
+      "yellow": "Yellow"
+    },
+    "radii": {
+      "default": "Default",
+      "none": "None",
+      "small": "Small",
+      "medium": "Medium",
+      "large": "Large"
+    }
   }
 }

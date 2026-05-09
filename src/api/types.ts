@@ -611,17 +611,40 @@ export interface AdminSummaryResponse {
 
 // --- 用户设置 ---
 
-export type ThemeColorName = "red" | "orange" | "amber" | "yellow" | "lime" | "green" | "emerald" | "teal" | "cyan" | "sky" | "blue" | "indigo" | "violet" | "purple" | "fuchsia" | "pink" | "rose";
-export type NeutralColorName = "slate" | "gray" | "zinc" | "neutral" | "stone";
+export type ThemeStyle = "vega" | "nova" | "maia" | "lyra" | "mira" | "luma" | "sera";
+export type ThemeBaseColor = "neutral" | "stone" | "zinc" | "mauve" | "olive" | "mist" | "taupe";
+export type ThemeColor = ThemeBaseColor | "amber" | "blue" | "cyan" | "emerald" | "fuchsia" | "green" | "indigo" | "lime" | "orange" | "pink" | "purple" | "red" | "rose" | "sky" | "teal" | "violet" | "yellow";
+export type ThemeRadius = "default" | "none" | "small" | "medium" | "large";
 
-export interface ThemeColors {
-  primary: ThemeColorName;
-  secondary: ThemeColorName;
-  success: ThemeColorName;
-  info: ThemeColorName;
-  warning: ThemeColorName;
-  error: ThemeColorName;
-  neutral: NeutralColorName;
+export interface ThemeConfigBase {
+  style: ThemeStyle;
+  base_color: ThemeBaseColor;
+  theme_color: ThemeColor;
+  chart_color: ThemeColor;
+  radius: ThemeRadius;
+}
+
+export interface ThemePresetResponse {
+  id: string;
+  name: string;
+  is_default: boolean;
+  config: ThemeConfigBase;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ThemePresetListResponse {
+  themes: ThemePresetResponse[];
+}
+
+export interface ThemePresetCreateRequest {
+  name: string;
+  config: ThemeConfigBase;
+}
+
+export interface ThemePresetUpdateRequest {
+  name?: string | null;
+  config?: ThemeConfigBase | null;
 }
 
 export interface UserSettingResponse {
@@ -636,7 +659,7 @@ export interface UserSettingResponse {
   two_factor: boolean;
   phone: string | null;
   theme_preset_id: string | null;
-  theme_colors: ThemeColors | null;
+  theme_config: ThemeConfigBase | null;
 }
 
 export interface UserSettingUpdateRequest {
@@ -644,7 +667,7 @@ export interface UserSettingUpdateRequest {
   language: string;
   timezone: number;
   theme_preset_id?: string | null;
-  theme_colors?: ThemeColors | null;
+  theme_config?: ThemeConfigBase | null;
 }
 
 export interface ChangePasswordRequest {
