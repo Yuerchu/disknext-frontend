@@ -1,10 +1,10 @@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { FileIcon } from "./file-icon";
+import { FileThumb } from "./file-thumb";
 import { FileContextMenu, type FileActions } from "./file-context-menu";
 import type { EntryResponse } from "@/api";
 import { cn } from "@/lib/utils";
-import { file } from "@/api";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -30,7 +30,8 @@ export function FileGridView({ items, selectedIds, showThumb, onSelect, onNaviga
       {items.map((entry) => {
         const isFolder = entry.type === "folder";
         const selected = selectedIds.has(entry.id);
-        const showImage = showThumb && entry.thumb && !isFolder;
+        const canThumb = showThumb && !isFolder && (entry.thumb || entry.mime_type?.startsWith("image/"));
+        const fallbackIcon = <FileIcon name={entry.name} isFolder={isFolder} className="size-12" />;
 
         return (
           <FileContextMenu key={entry.id} target={{ type: isFolder ? "folder" : "file", entry }} actions={actions}>
@@ -54,10 +55,10 @@ export function FileGridView({ items, selectedIds, showThumb, onSelect, onNaviga
                 <Checkbox checked={selected} onCheckedChange={() => onSelect(entry.id, { ctrlKey: true } as React.MouseEvent)} />
               </div>
 
-              {showImage ? (
-                <img src={file.getThumbUrl(entry.id)} alt={entry.name} loading="lazy" className="size-12 rounded object-cover" />
+              {canThumb ? (
+                <FileThumb fileId={entry.id} alt={entry.name} className="size-12 rounded object-cover" fallback={fallbackIcon} />
               ) : (
-                <FileIcon name={entry.name} isFolder={isFolder} className="size-12" />
+                fallbackIcon
               )}
 
               <Tooltip>

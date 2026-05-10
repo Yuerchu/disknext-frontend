@@ -168,18 +168,16 @@ export const file = {
   createDownloadToken: (fileId: string) =>
     http.post<{ access_token: string; access_expires: string }>(`/api/v1/file/download/${fileId}`).then((r) => r.data),
 
-  getThumbUrl: (id: string): string =>
-    `${import.meta.env.VITE_API_URL || ""}/api/v1/file/thumb/${id}`,
-
   createUploadSession: (req: CreateUploadSessionRequest) =>
-    http.post<UploadSessionResponse>("/api/v1/file/upload", req).then((r) => r.data),
+    http.post<UploadSessionResponse>("/api/v1/file/upload/", req).then((r) => r.data),
 
   uploadChunk: (sessionId: string, chunkIndex: number, fileBlob: Blob) => {
     const formData = new FormData();
-    formData.append("file", fileBlob);
+    formData.append("file", fileBlob, "chunk");
     return http.post<UploadChunkResponse>(
       `/api/v1/file/upload/${sessionId}/${chunkIndex}`,
       formData,
+      { headers: { "Content-Type": "multipart/form-data" } },
     ).then((r) => r.data);
   },
 };

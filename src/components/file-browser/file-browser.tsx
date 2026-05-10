@@ -176,7 +176,8 @@ export function FileBrowser({ directory, viewMode, showThumb, loading, path, onR
     onDelete: (entries) => setDeleteTargets(entries),
     onDownload: handleDownload,
     onShare: (entry) => setShareTarget(entry),
-  }), [onRefresh, handleNavigate, handleDownload]);
+    directoryId: directory?.id,
+  }), [onRefresh, handleNavigate, handleDownload, directory?.id]);
 
   // View props
   const viewProps = {
