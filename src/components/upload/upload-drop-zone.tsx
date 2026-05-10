@@ -20,18 +20,14 @@ export function UploadDropZone({ parentId, children, className }: UploadDropZone
     e.preventDefault();
     e.stopPropagation();
     dragCounter.current++;
-    if (e.dataTransfer.types.includes("Files")) {
-      setIsDragOver(true);
-    }
+    if (e.dataTransfer.types.includes("Files")) setIsDragOver(true);
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     dragCounter.current--;
-    if (dragCounter.current === 0) {
-      setIsDragOver(false);
-    }
+    if (dragCounter.current === 0) setIsDragOver(false);
   }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -44,13 +40,9 @@ export function UploadDropZone({ parentId, children, className }: UploadDropZone
     e.stopPropagation();
     dragCounter.current = 0;
     setIsDragOver(false);
-
     if (!parentId) return;
-
     const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) {
-      addFiles(files, parentId);
-    }
+    if (files.length > 0) addFiles(files, parentId);
   }, [parentId, addFiles]);
 
   return (

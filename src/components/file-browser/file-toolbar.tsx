@@ -88,22 +88,11 @@ export function FileToolbar({ path, viewMode, showThumb, directoryId, onViewMode
       {/* Controls */}
       <div className="flex items-center gap-1.5 shrink-0">
         {/* Upload button */}
-        <Tooltip>
-          <TooltipTrigger render={
-            <Button variant="outline" size="sm" onClick={handleUploadClick} disabled={!directoryId} />
-          }>
-            <Upload className="mr-1.5 size-4" />
-            {t("common.upload")}
-          </TooltipTrigger>
-          <TooltipContent>{t("upload.selectFiles")}</TooltipContent>
-        </Tooltip>
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={handleFileChange}
-        />
+        <Button variant="outline" size="sm" onClick={handleUploadClick} disabled={!directoryId}>
+          <Upload className="mr-1.5 size-4" />
+          {t("common.upload")}
+        </Button>
+        <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} />
 
         {/* View mode buttons */}
         <div className="flex items-center rounded-md border">

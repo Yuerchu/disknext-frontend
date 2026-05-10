@@ -1,9 +1,10 @@
 import { useTranslation } from "react-i18next";
-import { User, Shield, Eye } from "lucide-react";
+import { User, Shield, Eye, Palette } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import ProfileSection from "./profile-section";
 import SecuritySection from "./security-section";
 import ViewersSection from "./viewers-section";
+import AppearanceSection from "./appearance-section";
 
 export default function SettingsPage() {
   const { t } = useTranslation();
@@ -16,6 +17,10 @@ export default function SettingsPage() {
             <User className="size-4" />
             {t("userSettings.tabs.profile")}
           </TabsTrigger>
+          <TabsTrigger value="appearance">
+            <Palette className="size-4" />
+            {t("userSettings.tabs.appearance")}
+          </TabsTrigger>
           <TabsTrigger value="security">
             <Shield className="size-4" />
             {t("userSettings.tabs.security")}
@@ -27,6 +32,9 @@ export default function SettingsPage() {
         </TabsList>
         <TabsContent value="profile">
           <ProfileSection />
+        </TabsContent>
+        <TabsContent value="appearance">
+          <AppearanceSection />
         </TabsContent>
         <TabsContent value="security">
           <SecuritySection />

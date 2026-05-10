@@ -53,14 +53,10 @@ function generateId() {
 function processQueue() {
   const state = useUploadStore.getState();
   const { tasks, concurrency, activeCount } = state;
-
   const available = concurrency - activeCount;
   if (available <= 0) return;
-
   const pending = tasks.filter((t) => t.status === "pending");
-  const toStart = pending.slice(0, available);
-
-  for (const task of toStart) {
+  for (const task of pending.slice(0, available)) {
     startUpload(task.id);
   }
 }
@@ -82,7 +78,6 @@ async function startUpload(taskId: string) {
   try {
     const task = useUploadStore.getState().tasks.find((t) => t.id === taskId);
     if (!task) return;
-
     if (abort.signal.aborted) throw new DOMException("Aborted", "AbortError");
 
     const session = await file.createUploadSession({
@@ -96,13 +91,7 @@ async function startUpload(taskId: string) {
     useUploadStore.setState((s) => ({
       tasks: s.tasks.map((t) =>
         t.id === taskId
-          ? {
-            ...t,
-            sessionId: session.id,
-            chunkSize: session.chunk_size,
-            totalChunks: session.total_chunks,
-            uploadedChunks: session.uploaded_chunks,
-          }
+          ? { ...t, sessionId: session.id, chunkSize: session.chunk_size, totalChunks: session.total_chunks, uploadedChunks: session.uploaded_chunks }
           : t,
       ),
     }));
@@ -115,33 +104,19 @@ async function startUpload(taskId: string) {
       const start = i * chunk_size;
       const end = Math.min(start + chunk_size, f.size);
       const blob = f.slice(start, end);
-
-      const result = await file.uploadChunk(session.id, i, blob);
-
+      const result = await file.uploadChunk(session.id, i, blob, session.upload_url);
       const now = Date.now();
+
       useUploadStore.setState((s) => {
         const prev = s.tasks.find((t) => t.id === taskId);
         if (!prev) return s;
-
         const uploaded = result.uploaded_chunks;
         const progress = total_chunks > 0 ? Math.round((uploaded / total_chunks) * 100) : 0;
-
         const elapsed = prev.lastProgressAt ? (now - prev.lastProgressAt) / 1000 : 0;
-        const bytesUploaded = (end - start);
-        const speed = elapsed > 0 ? bytesUploaded / elapsed : prev.speed;
-
+        const speed = elapsed > 0 ? (end - start) / elapsed : prev.speed;
         return {
           tasks: s.tasks.map((t) =>
-            t.id === taskId
-              ? {
-                ...t,
-                uploadedChunks: uploaded,
-                progress,
-                speed,
-                lastProgressAt: now,
-                lastProgressBytes: end,
-              }
-              : t,
+            t.id === taskId ? { ...t, uploadedChunks: uploaded, progress, speed, lastProgressAt: now, lastProgressBytes: end } : t,
           ),
         };
       });
@@ -151,16 +126,17 @@ async function startUpload(taskId: string) {
 
     useUploadStore.setState((s) => ({
       tasks: s.tasks.map((t) =>
-        t.id === taskId
-          ? { ...t, status: "complete" as const, progress: 100, completedAt: Date.now(), speed: 0 }
-          : t,
+        t.id === taskId ? { ...t, status: "complete" as const, progress: 100, completedAt: Date.now(), speed: 0 } : t,
       ),
       activeCount: s.activeCount - 1,
     }));
-
     onUploadComplete?.();
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") {
+      const task = useUploadStore.getState().tasks.find((t) => t.id === taskId);
+      if (task?.sessionId) {
+        file.deleteUploadSession(task.sessionId).catch(() => {});
+      }
       useUploadStore.setState((s) => ({
         tasks: s.tasks.map((t) =>
           t.id === taskId ? { ...t, status: "cancelled" as const, speed: 0 } : t,
@@ -170,9 +146,7 @@ async function startUpload(taskId: string) {
     } else {
       useUploadStore.setState((s) => ({
         tasks: s.tasks.map((t) =>
-          t.id === taskId
-            ? { ...t, status: "error" as const, error: resolveErrorMessage(err), speed: 0 }
-            : t,
+          t.id === taskId ? { ...t, status: "error" as const, error: resolveErrorMessage(err), speed: 0 } : t,
         ),
         activeCount: s.activeCount - 1,
       }));
@@ -195,43 +169,23 @@ export const useUploadStore = create<UploadState>()((set, get) => ({
       const id = generateId();
       fileMap.set(id, f);
       return {
-        id,
-        fileName: f.name,
-        fileSize: f.size,
-        parentId,
-        status: "pending",
-        sessionId: null,
-        chunkSize: 0,
-        totalChunks: 0,
-        uploadedChunks: 0,
-        progress: 0,
-        speed: 0,
-        error: null,
-        startedAt: null,
-        completedAt: null,
-        lastProgressAt: null,
-        lastProgressBytes: 0,
+        id, fileName: f.name, fileSize: f.size, parentId,
+        status: "pending", sessionId: null, chunkSize: 0,
+        totalChunks: 0, uploadedChunks: 0, progress: 0, speed: 0,
+        error: null, startedAt: null, completedAt: null,
+        lastProgressAt: null, lastProgressBytes: 0,
       };
     });
-
-    set((s) => ({
-      tasks: [...newTasks, ...s.tasks],
-      panelOpen: true,
-      panelMinimized: false,
-    }));
-
+    set((s) => ({ tasks: [...newTasks, ...s.tasks], panelOpen: true, panelMinimized: false }));
     setTimeout(processQueue, 0);
   },
 
   cancelTask: (taskId) => {
-    const abort = abortMap.get(taskId);
-    if (abort) abort.abort();
-
+    abortMap.get(taskId)?.abort();
     set((s) => ({
       tasks: s.tasks.map((t) =>
         t.id === taskId && (t.status === "pending" || t.status === "uploading")
-          ? { ...t, status: "cancelled", speed: 0 }
-          : t,
+          ? { ...t, status: "cancelled", speed: 0 } : t,
       ),
     }));
   },
@@ -239,54 +193,28 @@ export const useUploadStore = create<UploadState>()((set, get) => ({
   retryTask: (taskId) => {
     const task = get().tasks.find((t) => t.id === taskId);
     if (!task || (task.status !== "error" && task.status !== "cancelled")) return;
-
     set((s) => ({
       tasks: s.tasks.map((t) =>
         t.id === taskId
-          ? {
-            ...t,
-            status: "pending" as const,
-            progress: 0,
-            uploadedChunks: 0,
-            speed: 0,
-            error: null,
-            startedAt: null,
-            completedAt: null,
-            lastProgressAt: null,
-            lastProgressBytes: 0,
-          }
+          ? { ...t, status: "pending" as const, progress: 0, uploadedChunks: 0, speed: 0, error: null, startedAt: null, completedAt: null, lastProgressAt: null, lastProgressBytes: 0 }
           : t,
       ),
     }));
-
     setTimeout(processQueue, 0);
   },
 
   removeTask: (taskId) => {
-    const abort = abortMap.get(taskId);
-    if (abort) abort.abort();
+    abortMap.get(taskId)?.abort();
     fileMap.delete(taskId);
     abortMap.delete(taskId);
-
-    set((s) => ({
-      tasks: s.tasks.filter((t) => t.id !== taskId),
-      panelOpen: s.tasks.length <= 1 ? false : s.panelOpen,
-    }));
+    set((s) => ({ tasks: s.tasks.filter((t) => t.id !== taskId) }));
   },
 
   clearCompleted: () => {
-    const completed = get().tasks.filter(
-      (t) => t.status === "complete" || t.status === "cancelled",
-    );
-    for (const t of completed) {
+    for (const t of get().tasks.filter((t) => t.status === "complete" || t.status === "cancelled")) {
       fileMap.delete(t.id);
     }
-
-    set((s) => ({
-      tasks: s.tasks.filter(
-        (t) => t.status !== "complete" && t.status !== "cancelled",
-      ),
-    }));
+    set((s) => ({ tasks: s.tasks.filter((t) => t.status !== "complete" && t.status !== "cancelled") }));
   },
 
   setPanelOpen: (open) => set({ panelOpen: open }),

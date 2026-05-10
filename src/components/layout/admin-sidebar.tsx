@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from "react-router";
 import {
   Home, Globe, ShieldCheck, Mail, Palette, FolderTree, Eye,
   Database, Server, Users, UserCog, File, Share2, ListTodo, ArrowLeft, AppWindow,
-  UserPlus, Image, Smartphone, Wrench,
+  UserPlus, Image, Smartphone, Wrench, SwatchBook,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup,
@@ -36,6 +36,7 @@ export function AdminSidebar(props: React.ComponentProps<typeof Sidebar>) {
     { path: "/admin/settings/avatar", icon: Image, label: t("admin.avatar"), scope: "admin.settings" },
     { path: "/admin/settings/pwa", icon: Smartphone, label: t("admin.pwa"), scope: "admin.settings" },
     { path: "/admin/settings/appearance", icon: Palette, label: t("admin.appearance"), scope: "admin.themes" },
+    { path: "/admin/settings/theme", icon: SwatchBook, label: t("admin.themePresets"), scope: "admin.themes" },
     { path: "/admin/settings/task", icon: ListTodo, label: t("admin.taskSettings"), scope: "admin.settings" },
     { path: "/admin/settings/advanced", icon: Wrench, label: t("admin.advanced"), scope: "admin.settings" },
   ];

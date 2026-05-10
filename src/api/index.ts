@@ -44,6 +44,7 @@ import type {
   PolicyTestS3Request, S3TestResponse,
   PolicyTestSlaveRequest,
   ResponseBase,
+  ThemePresetListResponse, ThemePresetCreateRequest, ThemePresetUpdateRequest,
 } from "./types";
 
 // 重导出
@@ -117,6 +118,9 @@ export const user = {
 export const site = {
   getConfig: () =>
     http.get<SiteConfigResponse>("/api/v1/site/config").then((r) => r.data),
+
+  themes: () =>
+    http.get<ThemePresetListResponse>("/api/v1/site/themes").then((r) => r.data),
 };
 
 // --- 管理 ---
@@ -168,10 +172,24 @@ export const file = {
   createDownloadToken: (fileId: string) =>
     http.post<{ access_token: string; access_expires: string }>(`/api/v1/file/download/${fileId}`).then((r) => r.data),
 
+  getThumbUrl: (id: string): string =>
+    `${import.meta.env.VITE_API_URL || ""}/api/v1/file/${id}/thumb`,
+
+  fetchThumb: (id: string) =>
+    http.get<Blob>(`/api/v1/file/${id}/thumb`, { responseType: "blob" }).then((r) => r.data),
+
   createUploadSession: (req: CreateUploadSessionRequest) =>
     http.post<UploadSessionResponse>("/api/v1/file/upload/", req).then((r) => r.data),
 
-  uploadChunk: (sessionId: string, chunkIndex: number, fileBlob: Blob) => {
+  uploadChunk: (sessionId: string, chunkIndex: number, fileBlob: Blob, uploadUrl?: string | null) => {
+    if (uploadUrl) {
+      const path = new URL(uploadUrl, window.location.origin).pathname;
+      return fetch(`${path}/${chunkIndex}`, {
+        method: "POST",
+        body: fileBlob,
+        headers: { "Content-Type": "application/octet-stream" },
+      }).then((r) => r.json() as Promise<UploadChunkResponse>);
+    }
     const formData = new FormData();
     formData.append("file", fileBlob, "chunk");
     return http.post<UploadChunkResponse>(
@@ -180,6 +198,9 @@ export const file = {
       { headers: { "Content-Type": "multipart/form-data" } },
     ).then((r) => r.data);
   },
+
+  deleteUploadSession: (sessionId: string) =>
+    http.delete<void>(`/api/v1/file/upload/${sessionId}`),
 };
 
 // --- 分享 ---
@@ -322,6 +343,25 @@ export const adminPolicy = {
     http.post<ResponseBase>("/api/v1/admin/policy/scf").then((r) => r.data),
   getOAuthUrl: (id: string) =>
     http.get<ResponseBase>(`/api/v1/admin/policy/${id}/oauth`).then((r) => r.data),
+};
+
+// --- 管理员：主题预设 ---
+
+export const adminTheme = {
+  list: () =>
+    http.get<ThemePresetListResponse>("/api/v1/admin/theme/").then((r) => r.data),
+
+  create: (req: ThemePresetCreateRequest) =>
+    http.post<void>("/api/v1/admin/theme/", req),
+
+  update: (id: string, req: ThemePresetUpdateRequest) =>
+    http.patch<void>(`/api/v1/admin/theme/${id}`, req),
+
+  delete: (id: string) =>
+    http.delete<void>(`/api/v1/admin/theme/${id}`),
+
+  setDefault: (id: string) =>
+    http.patch<void>(`/api/v1/admin/theme/${id}/default`),
 };
 
 // --- 管理员设置 ---

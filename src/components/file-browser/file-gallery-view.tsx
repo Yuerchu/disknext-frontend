@@ -1,6 +1,6 @@
 import { Checkbox } from "@/components/ui/checkbox";
 import { FileIcon } from "./file-icon";
-import { FileThumb } from "./file-thumb";
+import { ThumbImage } from "./thumb-image";
 import { FileContextMenu, type FileActions } from "./file-context-menu";
 import type { EntryResponse } from "@/api";
 import { cn } from "@/lib/utils";
@@ -29,7 +29,8 @@ export function FileGalleryView({ items, selectedIds, showThumb, onSelect, onNav
       {items.map((entry) => {
         const isFolder = entry.type === "folder";
         const selected = selectedIds.has(entry.id);
-        const canThumb = !isFolder && (entry.thumb || entry.mime_type?.startsWith("image/"));
+        const isThumbable = !!entry.mime_type && /^(image|video|audio)\//.test(entry.mime_type);
+        const showImage = showThumb && !isFolder && (entry.thumb || isThumbable);
 
         return (
           <FileContextMenu key={entry.id} target={{ type: isFolder ? "folder" : "file", entry }} actions={actions}>
@@ -54,13 +55,8 @@ export function FileGalleryView({ items, selectedIds, showThumb, onSelect, onNav
               </div>
 
               <div className="flex aspect-square items-center justify-center bg-muted">
-                {canThumb ? (
-                  <FileThumb
-                    fileId={entry.id}
-                    alt={entry.name}
-                    className="size-full object-cover"
-                    fallback={<FileIcon name={entry.name} isFolder={isFolder} className="size-16" />}
-                  />
+                {showImage ? (
+                  <ThumbImage fileId={entry.id} alt={entry.name} className="size-full" />
                 ) : (
                   <FileIcon name={entry.name} isFolder={isFolder} className="size-16" />
                 )}

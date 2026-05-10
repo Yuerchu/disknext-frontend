@@ -47,13 +47,7 @@ export function FileEmptyState({ actions }: FileEmptyStateProps) {
           <Upload className="mr-2 size-4" />
           {t("common.upload")}
         </Button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={handleFileChange}
-        />
+        <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} />
       </EmptyContent>
     </Empty>
   );

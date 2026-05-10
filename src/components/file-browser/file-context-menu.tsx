@@ -194,13 +194,7 @@ export function FileContextMenu({ children, target, actions, selectedEntries, cl
           </>
         )}
       </ContextMenuContent>
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        className="hidden"
-        onChange={handleFileChange}
-      />
+      <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} />
     </ContextMenu>
   );
 }

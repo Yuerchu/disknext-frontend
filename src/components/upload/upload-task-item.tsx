@@ -39,18 +39,12 @@ export function UploadTaskItem({ task, onCancel, onRetry, onRemove }: UploadTask
     <div className="flex flex-col gap-1.5 px-3 py-2 hover:bg-accent/50 transition-colors">
       <div className="flex items-center gap-2">
         {statusIcon}
-        <span className="flex-1 truncate text-sm" title={task.fileName}>
-          {task.fileName}
-        </span>
-        <span className="shrink-0 text-xs text-muted-foreground">
-          {formatSize(task.fileSize)}
-        </span>
+        <span className="flex-1 truncate text-sm" title={task.fileName}>{task.fileName}</span>
+        <span className="shrink-0 text-xs text-muted-foreground">{formatSize(task.fileSize)}</span>
         <div className="flex shrink-0 items-center gap-0.5">
           {(task.status === "error" || task.status === "cancelled") && (
             <Tooltip>
-              <TooltipTrigger render={
-                <Button variant="ghost" size="icon-sm" onClick={() => onRetry(task.id)} />
-              }>
+              <TooltipTrigger render={<Button variant="ghost" size="icon-sm" onClick={() => onRetry(task.id)} />}>
                 <RotateCcw className="size-3.5" />
               </TooltipTrigger>
               <TooltipContent>{t("upload.retry")}</TooltipContent>
@@ -58,9 +52,7 @@ export function UploadTaskItem({ task, onCancel, onRetry, onRemove }: UploadTask
           )}
           {(task.status === "pending" || task.status === "uploading") && (
             <Tooltip>
-              <TooltipTrigger render={
-                <Button variant="ghost" size="icon-sm" onClick={() => onCancel(task.id)} />
-              }>
+              <TooltipTrigger render={<Button variant="ghost" size="icon-sm" onClick={() => onCancel(task.id)} />}>
                 <X className="size-3.5" />
               </TooltipTrigger>
               <TooltipContent>{t("common.cancel")}</TooltipContent>
@@ -68,9 +60,7 @@ export function UploadTaskItem({ task, onCancel, onRetry, onRemove }: UploadTask
           )}
           {(task.status === "complete" || task.status === "error" || task.status === "cancelled") && (
             <Tooltip>
-              <TooltipTrigger render={
-                <Button variant="ghost" size="icon-sm" onClick={() => onRemove(task.id)} />
-              }>
+              <TooltipTrigger render={<Button variant="ghost" size="icon-sm" onClick={() => onRemove(task.id)} />}>
                 <X className="size-3.5" />
               </TooltipTrigger>
               <TooltipContent>{t("upload.removeTask")}</TooltipContent>
@@ -86,21 +76,15 @@ export function UploadTaskItem({ task, onCancel, onRetry, onRemove }: UploadTask
               <ProgressIndicator />
             </ProgressTrack>
           </Progress>
-          <span className="shrink-0 text-xs tabular-nums text-muted-foreground w-10 text-right">
-            {task.progress}%
-          </span>
+          <span className="shrink-0 text-xs tabular-nums text-muted-foreground w-10 text-right">{task.progress}%</span>
           {task.speed > 0 && (
-            <span className="shrink-0 text-xs text-muted-foreground w-16 text-right">
-              {formatSpeed(task.speed)}
-            </span>
+            <span className="shrink-0 text-xs text-muted-foreground w-16 text-right">{formatSpeed(task.speed)}</span>
           )}
         </div>
       )}
 
       {task.status === "error" && task.error && (
-        <p className="text-xs text-destructive truncate" title={task.error}>
-          {task.error}
-        </p>
+        <p className="text-xs text-destructive truncate" title={task.error}>{task.error}</p>
       )}
     </div>
   );

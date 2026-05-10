@@ -251,6 +251,7 @@
     "pwa": "PWA 设置",
     "taskSettings": "任务设置",
     "advanced": "高级设置",
+    "themePresets": "主题预设",
     "backToHome": "返回首页"
   },
   "adminHome": {
@@ -679,8 +680,18 @@
     "saveSuccess": "设置已保存",
     "tabs": {
       "profile": "个人资料",
+      "appearance": "外观",
       "security": "安全设置",
       "viewers": "文件查看器"
+    },
+    "appearance": {
+      "darkMode": "深色模式",
+      "darkModeDesc": "选择界面明暗主题",
+      "presetTitle": "主题预设",
+      "presetDesc": "选择管理员配置的主题预设",
+      "customTitle": "自定义主题",
+      "customDesc": "在预设基础上进一步自定义颜色和圆角",
+      "noConfig": "请先选择一个主题预设或自定义配置"
     },
     "profile": {
       "avatarTitle": "头像",
@@ -791,7 +802,6 @@
     "retry": "重试",
     "removeTask": "移除",
     "clearCompleted": "清除已完成",
-    "uploadSuccess": "文件上传完成",
     "selectFiles": "选择文件"
   },
   "sudo": {
@@ -811,5 +821,72 @@
     "resendIn": "{{seconds}}秒后重发",
     "verify": "验证",
     "verifying": "验证中..."
+  },
+  "adminTheme": {
+    "title": "主题预设管理",
+    "desc": "创建和管理站点主题预设，用户可选择预设作为界面主题",
+    "create": "创建预设",
+    "createDesc": "配置新的主题预设",
+    "edit": "编辑预设",
+    "editDesc": "修改主题预设配置",
+    "name": "预设名称",
+    "namePlaceholder": "输入预设名称",
+    "style": "界面风格",
+    "baseColor": "基础色",
+    "themeColor": "主题色",
+    "chartColor": "图表配色",
+    "radius": "圆角",
+    "preview": "预览",
+    "default": "默认",
+    "setDefault": "设为默认",
+    "deleteTitle": "删除预设",
+    "deleteConfirm": "确定要删除主题预设「{{name}}」吗？已关联此预设的用户将被清除主题设置。",
+    "createSuccess": "主题预设已创建",
+    "updateSuccess": "主题预设已更新",
+    "deleteSuccess": "主题预设已删除",
+    "setDefaultSuccess": "默认主题已更新",
+    "empty": "暂无主题预设，点击上方按钮创建",
+    "styles": {
+      "vega": "Vega（标准）",
+      "nova": "Nova（紧凑）",
+      "maia": "Maia（宽松圆润）",
+      "lyra": "Lyra（棱角分明）",
+      "mira": "Mira（极简紧凑）",
+      "luma": "Luma（柔和流畅）",
+      "sera": "Sera（编辑排版）"
+    },
+    "colors": {
+      "neutral": "中性灰",
+      "stone": "暖石灰",
+      "zinc": "冷锌灰",
+      "mauve": "淡紫灰",
+      "olive": "橄榄灰",
+      "mist": "雾蓝灰",
+      "taupe": "灰褐色",
+      "amber": "琥珀",
+      "blue": "蓝色",
+      "cyan": "青色",
+      "emerald": "翡翠绿",
+      "fuchsia": "品红",
+      "green": "绿色",
+      "indigo": "靛蓝",
+      "lime": "青柠",
+      "orange": "橙色",
+      "pink": "粉色",
+      "purple": "紫色",
+      "red": "红色",
+      "rose": "玫红",
+      "sky": "天蓝",
+      "teal": "蓝绿",
+      "violet": "紫罗兰",
+      "yellow": "黄色"
+    },
+    "radii": {
+      "default": "默认",
+      "none": "无圆角",
+      "small": "小",
+      "medium": "中等",
+      "large": "大"
+    }
   }
 }

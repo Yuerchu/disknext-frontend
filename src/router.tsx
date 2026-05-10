@@ -32,6 +32,7 @@ import PwaSettingsPage from "@/pages/admin/settings/pwa";
 import AppearanceSettingsPage from "@/pages/admin/settings/appearance";
 import TaskSettingsPage from "@/pages/admin/settings/task";
 import AdvancedSettingsPage from "@/pages/admin/settings/advanced";
+import ThemeSettingsPage from "@/pages/admin/settings/theme";
 
 export const router = createBrowserRouter([
   // Guest routes
@@ -65,6 +66,7 @@ export const router = createBrowserRouter([
       { path: "/admin/settings/avatar", element: <AvatarSettingsPage /> },
       { path: "/admin/settings/pwa", element: <PwaSettingsPage /> },
       { path: "/admin/settings/appearance", element: <AppearanceSettingsPage /> },
+      { path: "/admin/settings/theme", element: <ThemeSettingsPage /> },
       { path: "/admin/settings/task", element: <TaskSettingsPage /> },
       { path: "/admin/settings/advanced", element: <AdvancedSettingsPage /> },
       { path: "/admin/fs/:section", element: <AdminPlaceholder /> },
